@@ -1,4 +1,5 @@
 #include "header.h"
+#include <unistd.h>
 
 void initMenu(struct User *u)
 {
@@ -31,6 +32,11 @@ void initMenu(struct User *u)
         case 2:
             // student TODO : add your **Registration** function
             // here
+            registerMenu(u->name, u->password);
+            // printf("\nRegistration Successful!\n");
+            // printf("\nPlease login to continue...\n");
+            // sleep(2);  // Give user time to read the message
+            initMenu(u);  // Redirect back to main menu
             r = 1;
             break;
         case 3:
