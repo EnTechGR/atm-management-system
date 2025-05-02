@@ -1,16 +1,15 @@
-objects = src/main.o src/system.o src/auth.o
+CC = cc
+CFLAGS = -Wall -Wextra -g
 
-atm : $(objects)
-	cc -o atm $(objects)
+SRC = src/main.c src/system.c src/auth.c src/init_menu.c src/main_menu.c
+OBJ = $(SRC:.c=.o)
+TARGET = atm
 
-main.o : src/header.h
-kbd.o : src/header.h
-command.o : src/header.h
-display.o : src/header.h
-insert.o : src/header.h
-search.o : src/header.h
-files.o : src/header.h
-utils.o : src/header.h
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
-clean :
-	rm -f $(objects)
+src/%.o: src/%.c src/header.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJ) $(TARGET)

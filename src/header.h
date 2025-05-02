@@ -29,12 +29,19 @@ struct User
     char password[50];
 };
 
-// authentication functions
+// ==== AUTHENTICATION FUNCTIONS ====
 void loginMenu(char a[50], char pass[50]);
 void registerMenu(char a[50], char pass[50]);
 const char *getPassword(struct User u);
 
-// system function
+// ==== SYSTEM FUNCTIONS ====
 void createNewAcc(struct User u);
-void mainMenu(struct User u);
 void checkAllAccounts(struct User u);
+void saveAccountToFile(FILE *ptr, struct User u, struct Record r);
+void stayOrReturn(int notGood, void f(struct User u), struct User u);
+void success(struct User u);
+
+// ==== MENU FUNCTIONS ====
+void initMenu(struct User *u);
+void mainMenu(struct User u);
+
