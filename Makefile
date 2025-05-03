@@ -6,7 +6,7 @@ OBJ = $(SRC:.c=.o)
 TARGET = atm
 
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ) -lcrypto
 
 src/%.o: src/%.c src/header.h
 	$(CC) $(CFLAGS) -c $< -o $@

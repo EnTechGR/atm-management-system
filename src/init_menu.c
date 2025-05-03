@@ -17,15 +17,15 @@ void initMenu(struct User *u)
         switch (option)
         {
             case 1:
-            loginMenu(u->name, u->password);
-            if (strcmp(u->password, getPassword(*u)) == 0)
+            loginMenu(u->name, u->hashedPassword);
+            if (strcmp(u->hashedPassword, getPassword(*u)) == 0)
             {
                 printf("\n\nPassword Match!");
                 // Retrieve the user's ID
                 FILE *fp = fopen("./data/users.txt", "r");
                 if (fp) {
                     struct User tempUser;
-                    while (fscanf(fp, "%d %s %s", &tempUser.id, tempUser.name, tempUser.password) == 3) {
+                    while (fscanf(fp, "%d %s %s", &tempUser.id, tempUser.name, tempUser.hashedPassword) == 3) {
                         if (strcmp(tempUser.name, u->name) == 0) {
                             u->id = tempUser.id;
                             break;
@@ -54,7 +54,7 @@ void initMenu(struct User *u)
         case 2:
             // student TODO : add your **Registration** function
             // here
-            registerMenu(u->name, u->password);
+            registerMenu(u->name, u->hashedPassword);
             // printf("\nRegistration Successful!\n");
             // printf("\nPlease login to continue...\n");
             // sleep(2);  // Give user time to read the message

@@ -4,6 +4,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h> // Include for the read() function
+#include <openssl/sha.h>
+#include <fcntl.h>     // for open()
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "header.h" // Assuming header.h contains the definition for struct User
 
 char *USERS = "./data/users.txt";
@@ -15,6 +19,52 @@ void toLower(char *str) {
     }
 }
 
+void getInput(char *buffer, size_t size) {
+    if (fgets(buffer, size, stdin)) {
+        buffer[strcspn(buffer, "\n")] = 0; // Remove trailing newline
+        // Trim leading/trailing spaces (optional)
+    }
+}
+
+int isValidUsername(const char *username) {
+    if (strlen(username) == 0) return 0;
+    for (int i = 0; username[i]; i++) {
+        if (isspace((unsigned char)username[i])) {
+            return 0; // Reject if space found
+        }
+    }
+    return 1;
+}
+
+void generateSalt(char *salt, size_t length) {
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        perror("open(/dev/urandom)");
+        exit(1);
+    }
+    read(fd, salt, length);
+    close(fd);
+    // Convert to printable hex
+    for (size_t i = 0; i < length; i++) {
+        sprintf(&salt[i * 2], "%02x", (unsigned char)salt[i]);
+    }
+    salt[length * 2] = '\0';
+}
+
+void hashPassword(const char *password, const char *salt, char *output) {
+    char saltedPassword[256];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+
+    snprintf(saltedPassword, sizeof(saltedPassword), "%s%s", salt, password);
+    SHA256((unsigned char*)saltedPassword, strlen(saltedPassword), hash);
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
+    }
+    output[SHA256_DIGEST_LENGTH * 2] = '\0';
+}
+
+
 void loginMenu(char a[50], char pass[50]) {
     struct termios oflags, nflags;
     int i = 0;
@@ -22,7 +72,8 @@ void loginMenu(char a[50], char pass[50]) {
 
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Login:");
-    scanf("%s", a);
+    getchar(); // clear leftover newline
+    getInput(a, 50);
 
     // Disable canonical mode (line buffering) and echo
     tcgetattr(fileno(stdin), &oflags);
@@ -37,6 +88,7 @@ void loginMenu(char a[50], char pass[50]) {
     }
 
     printf("\n\n\n\n\n\t\t\t\tEnter the password to login:");
+    fflush(stdout);
     while (i < 49) { // Limit password length to avoid buffer overflow
         if (read(fileno(stdin), &ch, 1) != 1) {
             break; // Error reading
@@ -67,10 +119,10 @@ const char *getPassword(struct User u) {
         exit(1);
     }
 
-    while (fscanf(fp, "%*d %s %s", userChecker.name, userChecker.password) != EOF) {
+    while (fscanf(fp, "%*d %s %s", userChecker.name, userChecker.hashedPassword) != EOF) {
         if (strcmp(userChecker.name, u.name) == 0) {
             fclose(fp);
-            char *buff = strdup(userChecker.password); // Use strdup for safer return
+            char *buff = strdup(userChecker.hashedPassword); // Use strdup for safer return
             return buff;
         }
     }
@@ -94,7 +146,7 @@ int isUsernameTaken(const char *username) {
         exit(1);
     }
 
-    while (fscanf(fp, "%*d %s %s", userChecker.name, userChecker.password) != EOF) {
+    while (fscanf(fp, "%*d %s %s", userChecker.name, userChecker.hashedPassword) != EOF) {
         strncpy(lowerFileUsername, userChecker.name, sizeof(lowerFileUsername) - 1);
         lowerFileUsername[sizeof(lowerFileUsername) - 1] = '\0';
         toLower(lowerFileUsername);
@@ -112,11 +164,7 @@ int isUsernameTaken(const char *username) {
 void registerMenu(char a[50], char pass[50]) {
     FILE *read_fp = NULL;
     FILE *write_fp = NULL;
-    struct {
-        int index;
-        char name[50];
-        char password[50];
-    } users[100];
+    struct User users[100];
     int user_count = 0;
     char pass_retype[50];
     struct termios oflags, nflags;
@@ -125,8 +173,17 @@ void registerMenu(char a[50], char pass[50]) {
 
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Registration:");
-    printf("\n\nEnter the user name:");
-    scanf("%s", a);
+    printf("\n\nEnter the user name: ");
+    fflush(stdout);
+    getchar(); // Clear newline left by previous input
+    getInput(a, 50);
+
+    if (!isValidUsername(a)) {
+        printf("\n\nInvalid username. It must not contain spaces and cannot be empty.\n");
+        printf("\n\nPress any key to continue...");
+        getchar();
+        return;
+    }
 
     if (isUsernameTaken(a)) {
         printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", a);
@@ -191,22 +248,28 @@ void registerMenu(char a[50], char pass[50]) {
 
     // Read all existing users
     if ((read_fp = fopen(USERS, "r")) != NULL) {
-        while (fscanf(read_fp, "%d %s %s", &users[user_count].index, users[user_count].name, users[user_count].password) == 3) {
+        while (fscanf(read_fp, "%d %s %s", &users[user_count].id, users[user_count].name, users[user_count].hashedPassword) == 3) {
             user_count++;
         }
         fclose(read_fp);
     }
 
     // Add the new user to the array
-    users[user_count].index = user_count;
+    users[user_count].id = user_count;
     strcpy(users[user_count].name, a);
-    strcpy(users[user_count].password, pass);
+    char salt[33], hashed[65];
+    generateSalt(salt, 16); // 16 bytes = 32 hex characters
+    hashPassword(pass, salt, hashed);
+
+    strcpy(users[user_count].salt, salt);
+    strcpy(users[user_count].hashedPassword, hashed);
+
     user_count++;
 
     // Rewrite the entire file with updated indices
     if ((write_fp = fopen(USERS, "w")) != NULL) {
         for (int k = 0; k < user_count; k++) { // Use a different loop variable
-            fprintf(write_fp, "%d %s %s\n", users[k].index, users[k].name, users[k].password);
+            fprintf(write_fp, "%d %s %s %s\n", users[k].id, users[k].name, users[k].salt, users[k].hashedPassword);
         }
         fclose(write_fp);
     } else {

@@ -28,7 +28,8 @@ struct User
 {
     int id;
     char name[50];
-    char password[50];
+    char salt[33];             // 16 bytes as 32-char hex + null
+    char hashedPassword[65];
 };
 
 // ==== AUTHENTICATION FUNCTIONS ====
