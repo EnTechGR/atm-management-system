@@ -14,6 +14,9 @@ void initMenu(struct User *u)
     while (!r)
     {
         scanf("%d", &option);
+        // Clear the input buffer to remove the newline character
+        while (getchar() != '\n' && getchar() != EOF);
+
         switch (option)
         {
         case 1:

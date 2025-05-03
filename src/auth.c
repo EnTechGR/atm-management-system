@@ -102,40 +102,69 @@ void registerMenu(char a[50], char pass[50]) {
         char password[50];
     } users[100];
     int user_count = 0;
-
+    char sanitized_name[50];
+    int i, j;
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Registration:");
     printf("\n\nEnter the user name:");
-    scanf("%s", a);
-
-    if (isUsernameTaken(a)) {
-        printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", a);
+    fgets(a, 50, stdin);
+    a[strcspn(a, "\n")] = 0;
+    // Sanitize the username input
+    // Check for spaces in username
+    for (i = 0; a[i] != '\0'; i++) {
+        if (a[i] == ' ') {
+            printf("\n\nInvalid username. Spaces are not allowed in usernames.\n");
+            printf("\n\nPress any key to continue...");
+            getchar();
+            return;
+        }
+    }
+    
+    // Sanitize username (removing other invalid characters)
+    j = 0;
+    for (i = 0; a[i] != '\0'; i++) {
+        if (isalnum(a[i]) || a[i] == '_' || a[i] == '-' || a[i] == '.') {
+            if ((size_t)j < sizeof(sanitized_name) - 1) {
+                sanitized_name[j++] = a[i];
+            }
+        }
+    }
+    sanitized_name[j] = '\0';
+    if (strlen(sanitized_name) == 0) {
+        printf("\n\nInvalid username. Please use alphanumeric characters, underscores, hyphens, or dots only.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        while (getchar() != '\n' && getchar() != EOF);
+        return;
+    }
+    if (isUsernameTaken(sanitized_name)) {
+        printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", sanitized_name);
+        printf("\n\nPress any key to continue...");
+        //while (getchar() != '\n' && getchar() != EOF);
         getchar();
         return;
     }
-
     // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
     nflags = oflags;
     nflags.c_lflag &= ~ECHO;
     nflags.c_lflag |= ECHONL;
-
     if (tcsetattr(fileno(stdin), TCSANOW, &nflags) != 0) {
         perror("tcsetattr");
         exit(1);
     }
-
     printf("\n\nEnter the password:");
-    scanf("%s", pass);
-
+    fgets(pass, 50, stdin);
+    pass[strcspn(pass, "\n")] = 0;
+    
+    // REMOVED: This was clearing the input buffer after reading the password,
+    // causing the need to press Enter twice
+    // while (getchar() != '\n' && getchar() != EOF);
+    
     // Restore terminal settings
     if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
         perror("tcsetattr");
         exit(1);
     }
-
     // Read all existing users
     if ((read_fp = fopen(USERS, "r")) != NULL) {
         while (fscanf(read_fp, "%d %s %s", &users[user_count].index, users[user_count].name, users[user_count].password) == 3) {
@@ -143,13 +172,11 @@ void registerMenu(char a[50], char pass[50]) {
         }
         fclose(read_fp);
     }
-
     // Add the new user to the array
     users[user_count].index = user_count;
-    strcpy(users[user_count].name, a);
+    strcpy(users[user_count].name, sanitized_name);
     strcpy(users[user_count].password, pass);
     user_count++;
-
     // Rewrite the entire file with updated indices
     if ((write_fp = fopen(USERS, "w")) != NULL) {
         for (int i = 0; i < user_count; i++) {
@@ -160,9 +187,7 @@ void registerMenu(char a[50], char pass[50]) {
         perror("Error opening users file for writing");
         return;
     }
-
-    printf("\n\nUser %s registered successfully!\n", a);
+    printf("\n\nUser %s registered successfully!\n", sanitized_name);
     printf("\n\nPress any key to continue...");
-    getchar();
-    getchar();
+    getchar(); // This is needed to wait for user input before continuing
 }
