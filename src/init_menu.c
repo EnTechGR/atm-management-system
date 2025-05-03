@@ -32,7 +32,7 @@ void initMenu(struct User *u)
         case 2:
             // student TODO : add your **Registration** function
             // here
-            registerMenu(u->name, u->hashedPassword);
+            registerMenu(u->name, u->password);
             // printf("\nRegistration Successful!\n");
             // printf("\nPlease login to continue...\n");
             // sleep(2);  // Give user time to read the message
