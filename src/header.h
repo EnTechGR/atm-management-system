@@ -4,7 +4,9 @@
 
 struct Date
 {
-    int month, day, year;
+    int month;
+    int day;
+    int year;
 };
 
 // all fields for each record of an account
@@ -12,14 +14,14 @@ struct Record
 {
     int id;
     int userId;
-    char name[100];
-    char country[100];
-    int phone;
-    char accountType[10];
+    char name[100]; // User's name associated with this record
     int accountNbr;
-    double amount;
     struct Date deposit;
-    struct Date withdraw;
+    char country[100];
+    char phone[20]; // Corrected to char array for phone number
+    double amount;
+    char accountType[10];
+    // struct Date withdraw; // Uncomment if you plan to store withdrawal dates
 };
 
 struct User
@@ -44,4 +46,5 @@ void success(struct User u);
 // ==== MENU FUNCTIONS ====
 void initMenu(struct User *u);
 void mainMenu(struct User u);
+void updateAccountInfo(struct User loggedInUser);
 
