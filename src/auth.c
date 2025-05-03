@@ -103,43 +103,36 @@ void registerMenu(char a[50], char pass[50]) {
     } users[100];
     int user_count = 0;
     char sanitized_name[50];
-    int i, j;
+    int i;//, j;
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Registration:");
     printf("\n\nEnter the user name:");
     fgets(a, 50, stdin);
     a[strcspn(a, "\n")] = 0;
     // Sanitize the username input
-    // Check for spaces in username
+    // Check for invalid characters in username
     for (i = 0; a[i] != '\0'; i++) {
-        if (a[i] == ' ') {
-            printf("\n\nInvalid username. Spaces are not allowed in usernames.\n");
+        if (!isalnum(a[i])) {
+            printf("\n\nInvalid username. Only alphanumeric characters (a-z, A-Z, 0-9) without spaces are allowed.\n");
             printf("\n\nPress any key to continue...");
             getchar();
             return;
         }
     }
     
-    // Sanitize username (removing other invalid characters)
-    j = 0;
-    for (i = 0; a[i] != '\0'; i++) {
-        if (isalnum(a[i]) || a[i] == '_' || a[i] == '-' || a[i] == '.') {
-            if ((size_t)j < sizeof(sanitized_name) - 1) {
-                sanitized_name[j++] = a[i];
-            }
-        }
-    }
-    sanitized_name[j] = '\0';
+    // Username is valid, copy it to sanitized_name
+    strcpy(sanitized_name, a);
+    
     if (strlen(sanitized_name) == 0) {
-        printf("\n\nInvalid username. Please use alphanumeric characters, underscores, hyphens, or dots only.\n");
+        printf("\n\nUsername cannot be empty.\n");
         printf("\n\nPress any key to continue...");
-        //while (getchar() != '\n' && getchar() != EOF);
+        getchar();
         return;
     }
     if (isUsernameTaken(sanitized_name)) {
         printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", sanitized_name);
         printf("\n\nPress any key to continue...");
-        //while (getchar() != '\n' && getchar() != EOF);
+        while (getchar() != '\n' && getchar() != EOF);
         getchar();
         return;
     }
