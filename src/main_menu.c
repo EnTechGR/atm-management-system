@@ -15,7 +15,6 @@ void mainMenu(struct User u)
     printf("\n\t\t[7]- Transfer ownership\n");
     printf("\n\t\t[8]- Exit\n");
     scanf("%d", &option);
-    getchar();
 
     switch (option)
     {
@@ -25,7 +24,6 @@ void mainMenu(struct User u)
     case 2:
         // student TODO : add your **Update account information** function
         // here
-        updateAccountInfo(u);
         break;
     case 3:
         // student TODO : add your **Check the details of existing accounts** function
