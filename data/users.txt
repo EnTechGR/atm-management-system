@@ -1,15 +1,5 @@
 0 Alice q1w2e3r4t5y6
 1 Michel q1w2e3r4t5y6
-<<<<<<< HEAD
-2 as 34
-3 fd 343
-4 marinos 12345
-5 mk 12
-6 nm 1235
-7 m k
-8 df 12345
-9 dc 232323
-10 d f
-=======
-2 marinos 12345
->>>>>>> cf24d43 (registration sanitization)
+2 Marinos 12345
+3 me 12345
+4 hello 232323

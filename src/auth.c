@@ -133,7 +133,7 @@ void registerMenu(char a[50], char pass[50]) {
     if (strlen(sanitized_name) == 0) {
         printf("\n\nInvalid username. Please use alphanumeric characters, underscores, hyphens, or dots only.\n");
         printf("\n\nPress any key to continue...");
-        while (getchar() != '\n' && getchar() != EOF);
+        //while (getchar() != '\n' && getchar() != EOF);
         return;
     }
     if (isUsernameTaken(sanitized_name)) {
