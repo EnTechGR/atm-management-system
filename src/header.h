@@ -1,3 +1,6 @@
+#ifndef HEADER_H
+#define HEADER_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +29,7 @@ struct User
 {
     int id;
     char name[50];
-    char salt[33];             // 16 bytes as 32-char hex + null
+    char salt[33];         // 16 bytes as 32-char hex + null
     char password[65];
 };
 
@@ -39,10 +42,20 @@ const char *getPassword(struct User u);
 void createNewAcc(struct User u);
 void checkAllAccounts(struct User u);
 void saveAccountToFile(FILE *ptr, struct User u, struct Record r);
-void stayOrReturn(int notGood, void f(struct User u), struct User u);
+void stayOrReturn(int notGood, void (*f)(struct User), struct User u); // Corrected function pointer syntax
 void success(struct User u);
 
 // ==== MENU FUNCTIONS ====
 void initMenu(struct User *u);
 void mainMenu(struct User u);
 
+// ==== INPUT VALIDATION FUNCTIONS (declarations only) ====
+void getValidDate(struct Date *date);
+void getValidCountry(char country[100]);
+void getValidPhone(int *phone);
+void getValidAmount(double *amount);
+void getValidAccountType(char accountType[10]);
+int getValidAccountNumber();
+int getAccountFromFile(FILE *ptr, char name[50], struct Record *r);
+
+#endif // HEADER_H

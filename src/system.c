@@ -1,8 +1,17 @@
 #include "header.h"
 #include <time.h>
+#include <stdio.h>
+#include <string.h>
 #include <ctype.h>
 
 const char *RECORDS = "./data/records.txt";
+
+// Get today's date and validate user input for date
+#include "header.h"
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h> // For sleep (if needed for a small delay)
 
 // Get today's date and validate user input for date
 void getValidDate(struct Date *date) {
@@ -11,25 +20,36 @@ void getValidDate(struct Date *date) {
     char input[20];
     int day, month, year;
     int valid = 0;
-    
-    // Get today's date as default
+
+    // Get today's date
     time(&now);
     current_time = localtime(&now);
-    date->day = current_time->tm_mday;
-    date->month = current_time->tm_mon + 1; // tm_mon is 0-11
-    date->year = current_time->tm_year + 1900; // Years since 1900
-    
-    printf("\nEnter today's date(mm/dd/yyyy) [%02d/%02d/%04d]: ", 
-           date->month, date->day, date->year);
-    
-    // Clear input buffer
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-    
-    // Get user input with today's date as default
+    int default_day = current_time->tm_mday;
+    int default_month = current_time->tm_mon + 1; // tm_mon is 0-11
+    int default_year = current_time->tm_year + 1900; // Years since 1900
+
+    // Print the prompt with the current date
+    printf("\nEnter today's date(mm/dd/yyyy):%02d/%02d/%04d ",
+           default_month, default_day, default_year);
+    fflush(stdout);
+
+    // Small delay (in seconds) - try if it helps with terminal interaction
+    // sleep(0); // Try with 0 first, then maybe a very small value like 0.01 if needed
+
+    // Read the user's input
     if (fgets(input, sizeof(input), stdin) != NULL) {
-        // If user just pressed Enter, keep the default date
-        if (input[0] == '\n') {
+        // Remove trailing newline if present
+        size_t len = strlen(input);
+        if (len > 0 && input[len - 1] == '\n') {
+            input[len - 1] = '\0';
+            len--;
+        }
+
+        // If the user just pressed Enter (no modification), the input will be the default
+        if (len == 0) {
+            date->day = default_day;
+            date->month = default_month;
+            date->year = default_year;
             valid = 1;
         } else {
             // Try to parse the input
@@ -39,10 +59,10 @@ void getValidDate(struct Date *date) {
                     printf("Invalid month. Must be between 1 and 12.\n");
                     return getValidDate(date);
                 }
-                
+
                 // Validate day based on month (and leap year for February)
                 int max_days = 31; // Default for months with 31 days
-                
+
                 if (month == 4 || month == 6 || month == 9 || month == 11) {
                     max_days = 30;
                 } else if (month == 2) {
@@ -53,18 +73,18 @@ void getValidDate(struct Date *date) {
                         max_days = 28;
                     }
                 }
-                
+
                 if (day < 1 || day > max_days) {
                     printf("Invalid day for the given month. Must be between 1 and %d.\n", max_days);
                     return getValidDate(date);
                 }
-                
+
                 // Validate year (prevent unreasonable dates)
                 if (year < 2000 || year > 2100) {
                     printf("Invalid year. Must be between 2000 and 2100.\n");
                     return getValidDate(date);
                 }
-                
+
                 // If all validations pass, update the date
                 date->day = day;
                 date->month = month;
@@ -76,26 +96,24 @@ void getValidDate(struct Date *date) {
             }
         }
     }
-    
+
     if (!valid) {
         printf("Error reading input. Please try again.\n");
         return getValidDate(date);
     }
-    
+
     // Confirm the date
-    printf("Date set to: %02d/%02d/%04d\n", date->month, date->day, date->year);
+    //printf("\nDate set to: %02d/%02d/%04d\n", date->month, date->day, date->year);
 }
 
 // Sanitize and validate country input
 void getValidCountry(char country[100]) {
     char input[100];
     int valid = 0;
-    
     // Clear input buffer
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
     
     while (!valid) {
+        fflush(stdin);
         printf("\nEnter the country: ");
         if (fgets(input, sizeof(input), stdin) != NULL) {
             // Remove newline character
@@ -233,16 +251,15 @@ void getValidAccountType(char accountType[10]) {
 }
 
 // Validate account number
+// Validate account number
 int getValidAccountNumber() {
     char input[20];
     int accountNbr = 0;
     int valid = 0;
-    
-    // Clear input buffer
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-    
+
     while (!valid) {
+        // Ensure the input buffer is clear before prompting
+        fflush(stdin);
         printf("\nEnter the account number: ");
         if (fgets(input, sizeof(input), stdin) != NULL) {
             // Remove newline character
@@ -251,7 +268,7 @@ int getValidAccountNumber() {
                 input[len-1] = '\0';
                 len--;
             }
-            
+
             // Check if input contains only digits
             valid = 1;
             for (size_t i = 0; i < len; i++) {
@@ -261,7 +278,7 @@ int getValidAccountNumber() {
                     break;
                 }
             }
-            
+
             // Check if input is not too long and not empty
             if (valid && len > 0 && len <= 10) {
                 accountNbr = atoi(input);
@@ -278,7 +295,7 @@ int getValidAccountNumber() {
             }
         }
     }
-    
+
     return accountNbr;
 }
 
@@ -413,7 +430,7 @@ void createNewAcc(struct User u) {
         exit(1);
     }
 
-noAccount:
+    noAccount:
     system("clear");
     printf("\t\t\t===== New record =====\n");
 
@@ -422,7 +439,7 @@ noAccount:
     // Reset userId just to be absolutely sure
     r.userId = u.id;
 
-    // Use our sanitized date input function
+    // Use our modified sanitized date input function
     getValidDate(&r.deposit);
 
     // Get and validate account number
