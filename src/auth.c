@@ -99,15 +99,12 @@ int loginMenu(char a[50], char pass[50]) {
     struct termios oflags, nflags;
     struct User user;
     const char *stored_password;
-
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Login:");
-
     // Read username
     printf("\n\nEnter username: ");
     fgets(a, 50, stdin);
     a[strcspn(a, "\n")] = 0;
-
     // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
     nflags = oflags;
@@ -117,24 +114,19 @@ int loginMenu(char a[50], char pass[50]) {
         perror("tcsetattr");
         exit(1);
     }
-
     // Read password
     printf("\nEnter password: ");
     fgets(pass, 50, stdin);
     pass[strcspn(pass, "\n")] = 0;
-
     // Restore terminal
     if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
         perror("tcsetattr");
         exit(1);
     }
-
     // Fill user struct and check password
     strncpy(user.name, a, sizeof(user.name) - 1);
     user.name[sizeof(user.name) - 1] = '\0';
-
     stored_password = getPassword(user);
-
     if (strcmp(stored_password, "no user found") == 0) {
         printf("\n\nUser not found. Please register first.\n");
         printf("\n\nPress any key to continue...");
