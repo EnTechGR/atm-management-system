@@ -95,12 +95,20 @@ int verifyPassword(const char *password, const char *stored_password) {
     return strcmp(computed_hash_hex, hash_part) == 0;
 }
 
-void loginMenu(char a[50], char pass[50]) {
+int loginMenu(char a[50], char pass[50]) {
     struct termios oflags, nflags;
+    struct User user;
+    const char *stored_password;
+
     system("clear");
     printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Login:");
-    scanf("%s", a);
-    // disabling echo
+
+    // Read username
+    printf("\n\nEnter username: ");
+    fgets(a, 50, stdin);
+    a[strcspn(a, "\n")] = 0;
+
+    // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
     nflags = oflags;
     nflags.c_lflag &= ~ECHO;
@@ -109,14 +117,42 @@ void loginMenu(char a[50], char pass[50]) {
         perror("tcsetattr");
         exit(1);
     }
-    printf("\n\n\n\n\n\t\t\t\tEnter the password to login:");
-    scanf("%s", pass);
-    // restore terminal
+
+    // Read password
+    printf("\nEnter password: ");
+    fgets(pass, 50, stdin);
+    pass[strcspn(pass, "\n")] = 0;
+
+    // Restore terminal
     if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
         perror("tcsetattr");
         exit(1);
     }
+
+    // Fill user struct and check password
+    strncpy(user.name, a, sizeof(user.name) - 1);
+    user.name[sizeof(user.name) - 1] = '\0';
+
+    stored_password = getPassword(user);
+
+    if (strcmp(stored_password, "no user found") == 0) {
+        printf("\n\nUser not found. Please register first.\n");
+        printf("\n\nPress any key to continue...");
+        getchar();
+        return 0; // login failed
+    } else if (verifyPassword(pass, stored_password)) {
+        printf("\n\nLogin successful. Welcome, %s!\n", user.name);
+        printf("\n\nPress any key to continue...");
+        //getchar();
+        return 1; // login successful
+    } else {
+        printf("\n\nInvalid password. Access denied.\n");
+        printf("\n\nPress any key to continue...");
+        getchar();
+        return 0; // login failed
+    }
 }
+
 
 const char *getPassword(struct User u) {
     FILE *fp;
@@ -255,7 +291,7 @@ void registerMenu(char a[50], char pass[50]) {
         getchar();
         return;
     }
-    
+
     // Generate a random salt
     generateSalt(salt, sizeof(salt));
     
