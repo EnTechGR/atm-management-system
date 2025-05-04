@@ -1,6 +1,286 @@
 #include "header.h"
+#include <time.h>
+#include <ctype.h>
 
 const char *RECORDS = "./data/records.txt";
+
+// Get today's date and validate user input for date
+void getValidDate(struct Date *date) {
+    time_t now;
+    struct tm *current_time;
+    char input[20];
+    int day, month, year;
+    int valid = 0;
+    
+    // Get today's date as default
+    time(&now);
+    current_time = localtime(&now);
+    date->day = current_time->tm_mday;
+    date->month = current_time->tm_mon + 1; // tm_mon is 0-11
+    date->year = current_time->tm_year + 1900; // Years since 1900
+    
+    printf("\nEnter today's date(mm/dd/yyyy) [%02d/%02d/%04d]: ", 
+           date->month, date->day, date->year);
+    
+    // Clear input buffer
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+    
+    // Get user input with today's date as default
+    if (fgets(input, sizeof(input), stdin) != NULL) {
+        // If user just pressed Enter, keep the default date
+        if (input[0] == '\n') {
+            valid = 1;
+        } else {
+            // Try to parse the input
+            if (sscanf(input, "%d/%d/%d", &month, &day, &year) == 3) {
+                // Validate month (1-12)
+                if (month < 1 || month > 12) {
+                    printf("Invalid month. Must be between 1 and 12.\n");
+                    return getValidDate(date);
+                }
+                
+                // Validate day based on month (and leap year for February)
+                int max_days = 31; // Default for months with 31 days
+                
+                if (month == 4 || month == 6 || month == 9 || month == 11) {
+                    max_days = 30;
+                } else if (month == 2) {
+                    // Check for leap year
+                    if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                        max_days = 29;
+                    } else {
+                        max_days = 28;
+                    }
+                }
+                
+                if (day < 1 || day > max_days) {
+                    printf("Invalid day for the given month. Must be between 1 and %d.\n", max_days);
+                    return getValidDate(date);
+                }
+                
+                // Validate year (prevent unreasonable dates)
+                if (year < 2000 || year > 2100) {
+                    printf("Invalid year. Must be between 2000 and 2100.\n");
+                    return getValidDate(date);
+                }
+                
+                // If all validations pass, update the date
+                date->day = day;
+                date->month = month;
+                date->year = year;
+                valid = 1;
+            } else {
+                printf("Invalid date format. Please use mm/dd/yyyy format.\n");
+                return getValidDate(date);
+            }
+        }
+    }
+    
+    if (!valid) {
+        printf("Error reading input. Please try again.\n");
+        return getValidDate(date);
+    }
+    
+    // Confirm the date
+    printf("Date set to: %02d/%02d/%04d\n", date->month, date->day, date->year);
+}
+
+// Sanitize and validate country input
+void getValidCountry(char country[100]) {
+    char input[100];
+    int valid = 0;
+    
+    // Clear input buffer
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+    
+    while (!valid) {
+        printf("\nEnter the country: ");
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            // Remove newline character
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+                len--;
+            }
+            
+            // Check if input is not empty and contains only letters and spaces
+            if (len > 0) {
+                valid = 1;
+                for (size_t i = 0; i < len; i++) {
+                    if (!isalpha(input[i]) && input[i] != ' ' && input[i] != '-') {
+                        valid = 0;
+                        printf("Country name should contain only letters, spaces, and hyphens.\n");
+                        break;
+                    }
+                }
+            } else {
+                printf("Country name cannot be empty.\n");
+            }
+        }
+    }
+    
+    // Copy sanitized input to country
+    strncpy(country, input, 99);
+    country[99] = '\0'; // Ensure null termination
+}
+
+// Sanitize and validate phone number input
+void getValidPhone(int *phone) {
+    char input[20];
+    int valid = 0;
+    
+    while (!valid) {
+        printf("\nEnter the phone number (numeric only): ");
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            // Remove newline character
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+                len--;
+            }
+            
+            // Check if input contains only digits
+            valid = 1;
+            for (size_t i = 0; i < len; i++) {
+                if (!isdigit(input[i])) {
+                    valid = 0;
+                    printf("Phone number should contain only digits.\n");
+                    break;
+                }
+            }
+            
+            // Check if input is not too long
+            if (valid && len > 0 && len <= 10) {
+                *phone = atoi(input);
+            } else if (len > 10) {
+                valid = 0;
+                printf("Phone number is too long. Maximum 10 digits allowed.\n");
+            } else if (len == 0) {
+                valid = 0;
+                printf("Phone number cannot be empty.\n");
+            }
+        }
+    }
+}
+
+// Sanitize and validate deposit amount input
+void getValidAmount(double *amount) {
+    char input[50];
+    int valid = 0;
+    
+    while (!valid) {
+        printf("\nEnter amount to deposit: $");
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            // Remove newline character
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+                len--;
+            }
+            
+            // Check if input format is valid for a double
+            char *endptr;
+            double value = strtod(input, &endptr);
+            
+            if (endptr != input && *endptr == '\0' && value >= 0.0) {
+                *amount = value;
+                valid = 1;
+            } else {
+                printf("Invalid amount. Please enter a positive number.\n");
+            }
+        }
+    }
+}
+
+// Sanitize and validate account type input
+void getValidAccountType(char accountType[10]) {
+    char input[20];
+    int valid = 0;
+    const char *validTypes[] = {"saving", "current", "fixed01", "fixed02", "fixed03"};
+    int numTypes = 5;
+    
+    while (!valid) {
+        printf("\nChoose the type of account:\n");
+        printf("\t-> saving\n\t-> current\n\t-> fixed01(for 1 year)\n");
+        printf("\t-> fixed02(for 2 years)\n\t-> fixed03(for 3 years)\n");
+        printf("\n\tEnter your choice: ");
+        
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            // Remove newline character
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+                len--;
+            }
+            
+            // Check if input matches any of the valid account types
+            for (int i = 0; i < numTypes; i++) {
+                if (strcmp(input, validTypes[i]) == 0) {
+                    valid = 1;
+                    strncpy(accountType, input, 9);
+                    accountType[9] = '\0'; // Ensure null termination
+                    break;
+                }
+            }
+            
+            if (!valid) {
+                printf("Invalid account type. Please choose from the options above.\n");
+            }
+        }
+    }
+}
+
+// Validate account number
+int getValidAccountNumber() {
+    char input[20];
+    int accountNbr = 0;
+    int valid = 0;
+    
+    // Clear input buffer
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+    
+    while (!valid) {
+        printf("\nEnter the account number: ");
+        if (fgets(input, sizeof(input), stdin) != NULL) {
+            // Remove newline character
+            size_t len = strlen(input);
+            if (len > 0 && input[len-1] == '\n') {
+                input[len-1] = '\0';
+                len--;
+            }
+            
+            // Check if input contains only digits
+            valid = 1;
+            for (size_t i = 0; i < len; i++) {
+                if (!isdigit(input[i])) {
+                    valid = 0;
+                    printf("Account number should contain only digits.\n");
+                    break;
+                }
+            }
+            
+            // Check if input is not too long and not empty
+            if (valid && len > 0 && len <= 10) {
+                accountNbr = atoi(input);
+                if (accountNbr <= 0) {
+                    valid = 0;
+                    printf("Account number must be a positive number.\n");
+                }
+            } else if (len > 10) {
+                valid = 0;
+                printf("Account number is too long. Maximum 10 digits allowed.\n");
+            } else if (len == 0) {
+                valid = 0;
+                printf("Account number cannot be empty.\n");
+            }
+        }
+    }
+    
+    return accountNbr;
+}
 
 int getAccountFromFile(FILE *ptr, char name[50], struct Record *r)
 {
@@ -100,25 +380,18 @@ invalid:
     }
 }
 
-void createNewAcc(struct User u)
-{
+void createNewAcc(struct User u) {
     struct Record r;
     struct Record cr;
     char userName[50];
     int lastId = -1;
-    
-    // DEBUGGING: Print the user ID at the start
-    //printf("DEBUG - Start of createNewAcc: User ID = %d, Name = %s\n", u.id, u.name);
-    
+
     // Zero out the entire record structure to clear any garbage values
     memset(&r, 0, sizeof(struct Record));
-    
+
     // Explicitly set the user ID immediately
     r.userId = u.id;
-    
-    // DEBUGGING: Print the userId after setting it
-    //printf("DEBUG - After setting userId: r.userId = %d\n", r.userId);
-    
+
     // First pass: find the last ID
     FILE *pfRead = fopen(RECORDS, "r");
     if (pfRead != NULL) {
@@ -129,83 +402,61 @@ void createNewAcc(struct User u)
         }
         fclose(pfRead);
     }
-    
+
     // Set the new ID (last + 1)
     r.id = lastId + 1;
-    
-    // DEBUGGING: Print userId again to check if it's still correct
-    //printf("DEBUG - After finding last ID: r.userId = %d\n", r.userId);
-    
+
     // Open file for appending
     FILE *pf = fopen(RECORDS, "a+");
     if (pf == NULL) {
         printf("Error opening file!\n");
         exit(1);
     }
-    
+
 noAccount:
     system("clear");
     printf("\t\t\t===== New record =====\n");
-    
-    // DEBUGGING: Reaffirm the user ID 
+
     printf("Creating account for user ID: %d (Username: %s)\n", u.id, u.name);
-    
-    // DEBUGGING: Check if userId is still correct
-    printf("DEBUG - Before input: r.userId = %d\n", r.userId);
-    
+
     // Reset userId just to be absolutely sure
     r.userId = u.id;
-    
-    printf("\nEnter today's date(mm/dd/yyyy):");
-    scanf("%d/%d/%d", &r.deposit.month, &r.deposit.day, &r.deposit.year);
-    
-    // DEBUGGING: Check if userId changed after scanf
-    printf("DEBUG - After date input: r.userId = %d\n", r.userId);
-    
-    printf("\nEnter the account number:");
-    scanf("%d", &r.accountNbr);
-    
+
+    // Use our sanitized date input function
+    getValidDate(&r.deposit);
+
+    // Get and validate account number
+    r.accountNbr = getValidAccountNumber();
+
     // Reset file position to beginning for checking existing accounts
     rewind(pf);
-    
-    // DEBUGGING: Check if userId is still intact
-    printf("DEBUG - Before checking duplicates: r.userId = %d\n", r.userId);
-    
+
     // Check for duplicate account numbers for this user
-    while (getAccountFromFile(pf, userName, &cr))
-    {
-        if (strcmp(userName, u.name) == 0 && cr.accountNbr == r.accountNbr)
-        {
+    while (getAccountFromFile(pf, userName, &cr)) {
+        if (strcmp(userName, u.name) == 0 && cr.accountNbr == r.accountNbr) {
             printf("✖ This Account already exists for this user\n\n");
             goto noAccount;
         }
     }
-    
-    // DEBUGGING: Check if userId is still intact after checks
-    //printf("DEBUG - After checking duplicates: r.userId = %d\n", r.userId);
-    
-    printf("\nEnter the country:");
-    scanf("%s", r.country);
-    printf("\nEnter the phone number:");
-    scanf("%d", &r.phone);
-    printf("\nEnter amount to deposit: $");
-    scanf("%lf", &r.amount);
-    printf("\nChoose the type of account:\n\t-> saving\n\t-> current\n\t-> fixed01(for 1 year)\n\t-> fixed02(for 2 years)\n\t-> fixed03(for 3 years)\n\n\tEnter your choice:");
-    scanf("%s", r.accountType);
-    
-    // DEBUGGING: Final check before saving
-    //printf("DEBUG - Final check before saving: r.userId = %d\n", r.userId);
-    
+
+    // Get and validate country
+    getValidCountry(r.country);
+
+    // Get and validate phone number
+    getValidPhone(&r.phone);
+
+    // Get and validate deposit amount
+    getValidAmount(&r.amount);
+
+    // Get and validate account type
+    getValidAccountType(r.accountType);
+
     // Reset userId one last time
     r.userId = u.id;
-    
+
     // Move file position to end for appending
     fseek(pf, 0, SEEK_END);
-    
-    // DEBUGGING: Print the exact values being written to file
-    //printf("DEBUG - Writing to file: id=%d, userId=%d, name=%s, accountNbr=%d\n", 
-           //r.id, r.userId, u.name, r.accountNbr);
-           
+
     saveAccountToFile(pf, u, r);
     fclose(pf);
     success(u);
