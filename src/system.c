@@ -108,7 +108,7 @@ void createNewAcc(struct User u)
     int lastId = -1;
     
     // DEBUGGING: Print the user ID at the start
-    printf("DEBUG - Start of createNewAcc: User ID = %d, Name = %s\n", u.id, u.name);
+    //printf("DEBUG - Start of createNewAcc: User ID = %d, Name = %s\n", u.id, u.name);
     
     // Zero out the entire record structure to clear any garbage values
     memset(&r, 0, sizeof(struct Record));
@@ -117,7 +117,7 @@ void createNewAcc(struct User u)
     r.userId = u.id;
     
     // DEBUGGING: Print the userId after setting it
-    printf("DEBUG - After setting userId: r.userId = %d\n", r.userId);
+    //printf("DEBUG - After setting userId: r.userId = %d\n", r.userId);
     
     // First pass: find the last ID
     FILE *pfRead = fopen(RECORDS, "r");
@@ -134,7 +134,7 @@ void createNewAcc(struct User u)
     r.id = lastId + 1;
     
     // DEBUGGING: Print userId again to check if it's still correct
-    printf("DEBUG - After finding last ID: r.userId = %d\n", r.userId);
+    //printf("DEBUG - After finding last ID: r.userId = %d\n", r.userId);
     
     // Open file for appending
     FILE *pf = fopen(RECORDS, "a+");
@@ -182,7 +182,7 @@ noAccount:
     }
     
     // DEBUGGING: Check if userId is still intact after checks
-    printf("DEBUG - After checking duplicates: r.userId = %d\n", r.userId);
+    //printf("DEBUG - After checking duplicates: r.userId = %d\n", r.userId);
     
     printf("\nEnter the country:");
     scanf("%s", r.country);
@@ -194,7 +194,7 @@ noAccount:
     scanf("%s", r.accountType);
     
     // DEBUGGING: Final check before saving
-    printf("DEBUG - Final check before saving: r.userId = %d\n", r.userId);
+    //printf("DEBUG - Final check before saving: r.userId = %d\n", r.userId);
     
     // Reset userId one last time
     r.userId = u.id;
@@ -203,8 +203,8 @@ noAccount:
     fseek(pf, 0, SEEK_END);
     
     // DEBUGGING: Print the exact values being written to file
-    printf("DEBUG - Writing to file: id=%d, userId=%d, name=%s, accountNbr=%d\n", 
-           r.id, r.userId, u.name, r.accountNbr);
+    //printf("DEBUG - Writing to file: id=%d, userId=%d, name=%s, accountNbr=%d\n", 
+           //r.id, r.userId, u.name, r.accountNbr);
            
     saveAccountToFile(pf, u, r);
     fclose(pf);
