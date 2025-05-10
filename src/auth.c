@@ -7,9 +7,23 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <openssl/rand.h>
+#include <unistd.h> 
 #include "header.h" // Assuming header.h contains the definition for struct User
 
 char *USERS = "./data/users.txt";
+
+int getch(void) {
+    struct termios oldt, newt;
+    int ch;
+    tcgetattr(STDIN_FILENO, &oldt);           // Save current terminal settings
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);         // Disable buffered I/O and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // Apply new settings
+    ch = getchar();                           // Read one char (no Enter needed)
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // Restore old settings
+    return ch;
+}
+
 
 // Helper function to convert a string to lowercase
 void toLower(char *str) {
@@ -130,17 +144,18 @@ int loginMenu(char a[50], char pass[50]) {
     if (strcmp(stored_password, "no user found") == 0) {
         printf("\n\nUser not found. Please register first.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return 0; // login failed
     } else if (verifyPassword(pass, stored_password)) {
         printf("\n\nLogin successful. Welcome, %s!\n", user.name);
         printf("\n\nPress any key to continue...");
+        getch();  // flush leftover input
         //getchar();
         return 1; // login successful
     } else {
         printf("\n\nInvalid password. Access denied.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return 0; // login failed
     }
 }
@@ -239,7 +254,7 @@ void registerMenu(char a[50], char pass[50]) {
         if (!isalnum(a[i])) {
             printf("\n\nInvalid username. Only alphanumeric characters (a-z, A-Z, 0-9) are allowed.\n");
             printf("\n\nPress any key to continue...");
-            getchar();
+            getch();
             return;
         }
     }
@@ -250,14 +265,14 @@ void registerMenu(char a[50], char pass[50]) {
     if (strlen(sanitized_name) == 0) {
         printf("\n\nUsername cannot be empty.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return;
     }
     
     if (isUsernameTaken(sanitized_name)) {
         printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", sanitized_name);
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return;
     }
     
@@ -290,14 +305,14 @@ void registerMenu(char a[50], char pass[50]) {
     if (strcmp(pass, confirm_pass) != 0) {
         printf("\n\nPasswords do not match. Registration aborted.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return;
     }
     
     if (strchr(pass, ' ') != NULL) {
         printf("\n\nPassword cannot contain spaces. Registration aborted.\n");
         printf("\n\nPress any key to continue...");
-        getchar();
+        getch();
         return;
     }
 
@@ -341,5 +356,6 @@ void registerMenu(char a[50], char pass[50]) {
     
     printf("\n\nUser %s registered successfully!\n", sanitized_name);
     printf("\n\nPress any key to continue...");
-    getchar(); // This is needed to wait for user input before continuing
+    getch();
 }
+
