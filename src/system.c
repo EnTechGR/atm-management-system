@@ -258,43 +258,32 @@ void getValidAmount(double *amount) {
 
 // Sanitize and validate account type input
 void getValidAccountType(char accountType[10]) {
-    char input[20];
-    int valid = 0;
     const char *validTypes[] = {"saving", "current", "fixed01", "fixed02", "fixed03"};
-    int numTypes = 5;
-    
-    while (!valid) {
+    int numTypes = sizeof(validTypes) / sizeof(validTypes[0]);
+    int choice = -1;
+
+    while (choice < 1 || choice > numTypes) {
         printf("\nChoose the type of account:\n");
-        printf("\t-> saving\n\t-> current\n\t-> fixed01(for 1 year)\n");
-        printf("\t-> fixed02(for 2 years)\n\t-> fixed03(for 3 years)\n");
-        printf("\n\tEnter your choice: ");
-        
-        if (fgets(input, sizeof(input), stdin) != NULL) {
-            // Remove newline character
-            size_t len = strlen(input);
-            if (len > 0 && input[len-1] == '\n') {
-                input[len-1] = '\0';
-                len--;
-            }
-            
-            // Check if input matches any of the valid account types
-            for (int i = 0; i < numTypes; i++) {
-                if (strcmp(input, validTypes[i]) == 0) {
-                    valid = 1;
-                    strncpy(accountType, input, 9);
-                    accountType[9] = '\0'; // Ensure null termination
-                    break;
-                }
-            }
-            
-            if (!valid) {
-                printf("Invalid account type. Please choose from the options above.\n");
+        printf("  1. saving\n");
+        printf("  2. current\n");
+        printf("  3. fixed01 (for 1 year)\n");
+        printf("  4. fixed02 (for 2 years)\n");
+        printf("  5. fixed03 (for 3 years)\n");
+        printf("\nEnter your choice [1-%d]: ", numTypes);
+
+        char buffer[10];
+        if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+            choice = atoi(buffer);
+            if (choice >= 1 && choice <= numTypes) {
+                strncpy(accountType, validTypes[choice - 1], 9);
+                accountType[9] = '\0'; // Ensure null termination
+            } else {
+                printf("Invalid selection. Please choose a number between 1 and %d.\n", numTypes);
             }
         }
     }
 }
 
-// Validate account number
 // Validate account number
 int getValidAccountNumber() {
     char input[20];
@@ -362,7 +351,7 @@ int getAccountFromFile(FILE *ptr, char name[50], struct Record *r)
 void saveAccountToFile(FILE *ptr, struct User u, struct Record r)
 {
     // DEBUGGING: Print values before writing to file
-    printf("DEBUG - saveAccountToFile: id=%d, userId=%d, name=%s\n", r.id, r.userId, u.name);
+    //printf("DEBUG - saveAccountToFile: id=%d, userId=%d, name=%s\n", r.id, r.userId, u.name);
     
     // Ensure we're using the correct userId (from the record, not from somewhere else)
     fprintf(ptr, "%d %d %s %d %d/%d/%d %s %s %.2lf %s\n\n",
