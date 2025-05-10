@@ -29,7 +29,7 @@ void getValidDate(struct Date *date) {
     int default_year = current_time->tm_year + 1900; // Years since 1900
 
     // Print the prompt with the current date
-    printf("\nEnter today's date(mm/dd/yyyy):%02d/%02d/%04d ",
+    printf("\nEnter today's date(mm/dd/yyyy) or accept default:%02d/%02d/%04d ",
            default_month, default_day, default_year);
     fflush(stdout);
 
@@ -434,7 +434,21 @@ void createNewAcc(struct User u) {
     system("clear");
     printf("\t\t\t===== New record =====\n");
 
-    printf("Creating account for user ID: %d (Username: %s)\n", u.id, u.name);
+    printf("Creating account for user: %s\n", u.name);
+
+    // Show existing account numbers for the user
+    printf("Existing account numbers for %s:\n", u.name);
+    rewind(pf); // Make sure we're at the start of the file
+    int foundAny = 0;
+    while (getAccountFromFile(pf, userName, &cr)) {
+        if (strcmp(userName, u.name) == 0) {
+            printf(" - %d\n", cr.accountNbr);
+            foundAny = 1;
+        }
+    }
+    if (!foundAny) {
+        printf(" (None)\n");
+    }
 
     // Reset userId just to be absolutely sure
     r.userId = u.id;

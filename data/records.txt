@@ -10,3 +10,7 @@
 
 5 2 marinos 23 5/4/2025 fr 3232323 12.00 saving
 
+6 2 marinos 1 5/10/2025 Greece -1641098490 12.00 saving
+
+7 2 marinos 2 5/10/2025 re 1234567890 12.00 saving
+
