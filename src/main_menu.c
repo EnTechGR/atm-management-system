@@ -48,6 +48,7 @@ void mainMenu(struct User u) {
                     case 2:
                         // student TODO : add your **Update account information** function
                         // here
+                        updateAccount(u);
                         validOption = 1;
                         break;
                     case 3:

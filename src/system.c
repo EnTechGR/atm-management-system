@@ -1,3 +1,112 @@
+// void createNewAcc(struct User u) {
+//     struct Record r;
+//     struct Record cr;
+//     char userName[50];
+//     int lastId = -1;
+
+//     // Zero out the entire record structure to clear any garbage values
+//     memset(&r, 0, sizeof(struct Record));
+
+//     // Explicitly set the user ID immediately
+//     r.userId = u.id;
+
+//     // First pass: find the last ID
+//     FILE *pfRead = fopen(RECORDS, "r");
+//     if (pfRead != NULL) {
+//         while (getAccountFromFile(pfRead, userName, &cr)) {
+//             if (cr.id > lastId) {
+//                 lastId = cr.id;
+//             }
+//         }
+//         fclose(pfRead);
+//     }
+
+//     // Set the new ID (last + 1)
+//     r.id = lastId + 1;
+
+//     // Open file for appending
+//     FILE *pf = fopen(RECORDS, "a+");
+//     if (pf == NULL) {
+//         printf("Error opening file!\n");
+//         exit(1);
+//     }
+
+//     //noAccount:
+//     system("clear");
+//     printf("\t\t\t===== New record =====\n");
+
+//     printf("Creating account for user: %s\n", u.name);
+
+//     // Show existing account numbers for the user
+//     printf("Existing account numbers for %s:\n", u.name);
+//     rewind(pf); // Make sure we're at the start of the file
+//     int foundAny = 0;
+//     while (getAccountFromFile(pf, userName, &cr)) {
+//         if (strcmp(userName, u.name) == 0) {
+//             printf(" - %d\n", cr.accountNbr);
+//             foundAny = 1;
+//         }
+//     }
+//     if (!foundAny) {
+//         printf(" (None)\n");
+//     }
+
+//     // Reset userId just to be absolutely sure
+//     r.userId = u.id;
+
+//     // Use our modified sanitized date input function
+//     getValidDate(&r.deposit);
+
+//     // Get and validate account number
+//     r.accountNbr = getValidAccountNumber();
+
+//     // Reset file position to beginning for checking existing accounts
+//     rewind(pf);
+//     int existingAccounts[100];
+//     int existingCount = 0;
+//     foundAny = 0;
+
+//     // Check for duplicate account numbers for this user
+//     while (getAccountFromFile(pf, userName, &cr)) {
+//         if (strcmp(userName, u.name) == 0) {
+//             printf(" - %d\n", cr.accountNbr);
+//             if (existingCount < 100) {
+//                 existingAccounts[existingCount++] = cr.accountNbr;
+//             }
+//             foundAny = 1;
+//         }
+//     }
+
+//     if (!foundAny) {
+//         printf(" (None)\n");
+//     }
+
+//     // Get and validate account number with uniqueness check
+//     r.accountNbr = getValidAccountNumber(existingAccounts, existingCount);
+
+//     // Get and validate country
+//     getValidCountry(r.country);
+
+//     // Get and validate phone number
+//     getValidPhone(r.phone);
+
+//     // Get and validate deposit amount
+//     getValidAmount(&r.amount);
+
+//     // Get and validate account type
+//     getValidAccountType(r.accountType);
+
+//     // Reset userId one last time
+//     r.userId = u.id;
+
+//     // Move file position to end for appending
+//     fseek(pf, 0, SEEK_END);
+
+//     saveAccountToFile(pf, u, r);
+//     fclose(pf);
+//     success(u);
+// }
+
 #include "header.h"
 #include <time.h>
 #include <stdio.h>
@@ -112,114 +221,7 @@ invalid:
     }
 }
 
-// void createNewAcc(struct User u) {
-//     struct Record r;
-//     struct Record cr;
-//     char userName[50];
-//     int lastId = -1;
 
-//     // Zero out the entire record structure to clear any garbage values
-//     memset(&r, 0, sizeof(struct Record));
-
-//     // Explicitly set the user ID immediately
-//     r.userId = u.id;
-
-//     // First pass: find the last ID
-//     FILE *pfRead = fopen(RECORDS, "r");
-//     if (pfRead != NULL) {
-//         while (getAccountFromFile(pfRead, userName, &cr)) {
-//             if (cr.id > lastId) {
-//                 lastId = cr.id;
-//             }
-//         }
-//         fclose(pfRead);
-//     }
-
-//     // Set the new ID (last + 1)
-//     r.id = lastId + 1;
-
-//     // Open file for appending
-//     FILE *pf = fopen(RECORDS, "a+");
-//     if (pf == NULL) {
-//         printf("Error opening file!\n");
-//         exit(1);
-//     }
-
-//     //noAccount:
-//     system("clear");
-//     printf("\t\t\t===== New record =====\n");
-
-//     printf("Creating account for user: %s\n", u.name);
-
-//     // Show existing account numbers for the user
-//     printf("Existing account numbers for %s:\n", u.name);
-//     rewind(pf); // Make sure we're at the start of the file
-//     int foundAny = 0;
-//     while (getAccountFromFile(pf, userName, &cr)) {
-//         if (strcmp(userName, u.name) == 0) {
-//             printf(" - %d\n", cr.accountNbr);
-//             foundAny = 1;
-//         }
-//     }
-//     if (!foundAny) {
-//         printf(" (None)\n");
-//     }
-
-//     // Reset userId just to be absolutely sure
-//     r.userId = u.id;
-
-//     // Use our modified sanitized date input function
-//     getValidDate(&r.deposit);
-
-//     // Get and validate account number
-//     r.accountNbr = getValidAccountNumber();
-
-//     // Reset file position to beginning for checking existing accounts
-//     rewind(pf);
-//     int existingAccounts[100];
-//     int existingCount = 0;
-//     foundAny = 0;
-
-//     // Check for duplicate account numbers for this user
-//     while (getAccountFromFile(pf, userName, &cr)) {
-//         if (strcmp(userName, u.name) == 0) {
-//             printf(" - %d\n", cr.accountNbr);
-//             if (existingCount < 100) {
-//                 existingAccounts[existingCount++] = cr.accountNbr;
-//             }
-//             foundAny = 1;
-//         }
-//     }
-
-//     if (!foundAny) {
-//         printf(" (None)\n");
-//     }
-
-//     // Get and validate account number with uniqueness check
-//     r.accountNbr = getValidAccountNumber(existingAccounts, existingCount);
-
-//     // Get and validate country
-//     getValidCountry(r.country);
-
-//     // Get and validate phone number
-//     getValidPhone(r.phone);
-
-//     // Get and validate deposit amount
-//     getValidAmount(&r.amount);
-
-//     // Get and validate account type
-//     getValidAccountType(r.accountType);
-
-//     // Reset userId one last time
-//     r.userId = u.id;
-
-//     // Move file position to end for appending
-//     fseek(pf, 0, SEEK_END);
-
-//     saveAccountToFile(pf, u, r);
-//     fclose(pf);
-//     success(u);
-// }
 
 void createNewAcc(struct User u) {
     struct Record r;
@@ -317,5 +319,116 @@ void checkAllAccounts(struct User u)
         }
     }
     fclose(pf);
+    success(u);
+}
+
+void updateAccount(struct User u) {
+    struct Record r;
+    char userName[50];
+    int accountToUpdate;
+    int found = 0;
+    int choice;
+    int existingAccounts[100];
+    int existingCount = 0;
+    int foundAny = 0;
+
+    FILE *pfRead = fopen(RECORDS, "r");
+    if (pfRead == NULL) {
+        printf("Error opening file for reading.\n");
+        return;
+    }
+
+    // First, list all accounts for the user
+    printf("======= Update Account =======\n");
+    printf("Existing account numbers for %s:\n", u.name);
+    while (getAccountFromFile(pfRead, userName, &r)) {
+        if (strcmp(userName, u.name) == 0) {
+            printf(" - %d\n", r.accountNbr);
+            if (existingCount < 100) {
+                existingAccounts[existingCount++] = r.accountNbr;
+            }
+            foundAny = 1;
+        }
+    }
+    if (!foundAny) {
+        printf(" (None)\n");
+        fclose(pfRead);
+        return;
+    }
+
+    // Ask for account number
+    printf("Enter the account number you want to update: ");
+    scanf("%d", &accountToUpdate);
+    getchar(); // consume newline
+
+    // Validate account number exists
+    int valid = 0;
+    for (int i = 0; i < existingCount; i++) {
+        if (existingAccounts[i] == accountToUpdate) {
+            valid = 1;
+            break;
+        }
+    }
+    if (!valid) {
+        printf("✖ Invalid account number selected.\n");
+        fclose(pfRead);
+        return;
+    }
+
+    // Rewind file for second pass
+    rewind(pfRead);
+
+    // Open temporary file to write updated records
+    FILE *pfTemp = fopen("./data/temp.txt", "w");
+    if (pfTemp == NULL) {
+        printf("Error opening temporary file.\n");
+        fclose(pfRead);
+        return;
+    }
+
+    while (getAccountFromFile(pfRead, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToUpdate) {
+            found = 1;
+
+            printf("What would you like to update?\n");
+            printf("1. Country\n");
+            printf("2. Phone number\n");
+            printf("Enter your choice: ");
+            scanf("%d", &choice);
+            getchar(); // consume newline
+
+            if (choice == 1) {
+                getValidCountry(r.country);
+            } else if (choice == 2) {
+                getValidPhone(r.phone);
+            } else {
+                printf("Invalid choice. Returning to main menu.\n");
+                fclose(pfRead);
+                fclose(pfTemp);
+                remove("./data/temp.txt");
+                mainMenu(u);
+                return;
+            }
+
+            printf("✔ Account updated successfully!\n");
+        }
+
+        // Save either the updated or unchanged record
+        struct User tempUser = u;
+        strncpy(tempUser.name, userName, sizeof(tempUser.name));
+        saveAccountToFile(pfTemp, tempUser, r);
+    }
+
+    fclose(pfRead);
+    fclose(pfTemp);
+
+    if (!found) {
+        printf("✖ Account not found or doesn't belong to user.\n");
+        remove("./data/temp.txt");
+    } else {
+        remove(RECORDS);
+        rename("./data/temp.txt", RECORDS);
+    }
+
     success(u);
 }
