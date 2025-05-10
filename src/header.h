@@ -17,7 +17,7 @@ struct Record
     int userId;
     char name[100];
     char country[100];
-    int phone;
+    char phone[11];
     char accountType[10];
     int accountNbr;
     double amount;
@@ -52,7 +52,7 @@ void mainMenu(struct User u);
 // ==== INPUT VALIDATION FUNCTIONS (declarations only) ====
 void getValidDate(struct Date *date);
 void getValidCountry(char country[100]);
-void getValidPhone(int *phone);
+void getValidPhone(char phone[11]);
 void getValidAmount(double *amount);
 void getValidAccountType(char accountType[10]);
 int getValidAccountNumber();

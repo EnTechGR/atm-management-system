@@ -145,39 +145,37 @@ void getValidCountry(char country[100]) {
 }
 
 // Sanitize and validate phone number input
-void getValidPhone(int *phone) {
+void getValidPhone(char phone[11]) {
     char input[20];
     int valid = 0;
-    
+
     while (!valid) {
-        printf("\nEnter the phone number (numeric only): ");
+        printf("\nEnter the phone number (10 digits): ");
         if (fgets(input, sizeof(input), stdin) != NULL) {
-            // Remove newline character
+            // Remove newline
             size_t len = strlen(input);
-            if (len > 0 && input[len-1] == '\n') {
-                input[len-1] = '\0';
+            if (len > 0 && input[len - 1] == '\n') {
+                input[len - 1] = '\0';
                 len--;
             }
-            
-            // Check if input contains only digits
+
+            if (len != 10) {
+                printf("Phone number must be exactly 10 digits.\n");
+                continue;
+            }
+
             valid = 1;
-            for (size_t i = 0; i < len; i++) {
+            for (size_t i = 0; i < 10; i++) {
                 if (!isdigit(input[i])) {
-                    valid = 0;
                     printf("Phone number should contain only digits.\n");
+                    valid = 0;
                     break;
                 }
             }
-            
-            // Check if input is not too long
-            if (valid && len > 0 && len <= 10) {
-                *phone = atoi(input);
-            } else if (len > 10) {
-                valid = 0;
-                printf("Phone number is too long. Maximum 10 digits allowed.\n");
-            } else if (len == 0) {
-                valid = 0;
-                printf("Phone number cannot be empty.\n");
+
+            if (valid) {
+                strncpy(phone, input, 10);
+                phone[10] = '\0'; // Null terminate
             }
         }
     }
@@ -203,6 +201,19 @@ void getValidAmount(double *amount) {
             double value = strtod(input, &endptr);
             
             if (endptr != input && *endptr == '\0' && value >= 0.0) {
+                // Check for more than two decimal places
+                double check;
+                if (sscanf(input, "%lf", &check) == 1) {
+                    int cents = (int)(check * 100);
+                    if ((check * 100) - cents > 0.0001) {
+                        printf("Amount should be in correct format (up to two decimal places only).\n");
+                        continue;
+                    }
+                }
+                if (value == 0.0) {
+                    printf("Amount must be greater than zero.\n");
+                    continue;
+                }
                 *amount = value;
                 valid = 1;
             } else {
@@ -301,18 +312,18 @@ int getValidAccountNumber() {
 
 int getAccountFromFile(FILE *ptr, char name[50], struct Record *r)
 {
-    return fscanf(ptr, "%d %d %s %d %d/%d/%d %s %d %lf %s",
-                  &r->id,
-		  &r->userId,
-		  name,
-                  &r->accountNbr,
-                  &r->deposit.month,
-                  &r->deposit.day,
-                  &r->deposit.year,
-                  r->country,
-                  &r->phone,
-                  &r->amount,
-                  r->accountType) != EOF;
+    return fscanf(ptr, "%d %d %s %d %d/%d/%d %s %s %lf %s",
+                &r->id,
+		        &r->userId,
+		        name,
+                &r->accountNbr,
+                &r->deposit.month,
+                &r->deposit.day,
+                &r->deposit.year,
+                r->country,
+                r->phone,
+                &r->amount,
+                r->accountType) != EOF;
 }
 
 void saveAccountToFile(FILE *ptr, struct User u, struct Record r)
@@ -321,7 +332,7 @@ void saveAccountToFile(FILE *ptr, struct User u, struct Record r)
     printf("DEBUG - saveAccountToFile: id=%d, userId=%d, name=%s\n", r.id, r.userId, u.name);
     
     // Ensure we're using the correct userId (from the record, not from somewhere else)
-    fprintf(ptr, "%d %d %s %d %d/%d/%d %s %d %.2lf %s\n\n",
+    fprintf(ptr, "%d %d %s %d %d/%d/%d %s %s %.2lf %s\n\n",
             r.id,
             u.id,  // Use u.id directly instead of r.userId which might be corrupted
             u.name,
@@ -474,7 +485,7 @@ void createNewAcc(struct User u) {
     getValidCountry(r.country);
 
     // Get and validate phone number
-    getValidPhone(&r.phone);
+    getValidPhone(r.phone);
 
     // Get and validate deposit amount
     getValidAmount(&r.amount);
@@ -507,7 +518,7 @@ void checkAllAccounts(struct User u)
         if (strcmp(userName, u.name) == 0)
         {
             printf("_____________________\n");
-            printf("\nAccount number:%d\nDeposit Date:%d/%d/%d \ncountry:%s \nPhone number:%d \nAmount deposited: $%.2f \nType Of Account:%s\n",
+            printf("\nAccount number:%d\nDeposit Date:%d/%d/%d \ncountry:%s \nPhone number:%s \nAmount deposited: $%.2f \nType Of Account:%s\n",
                    r.accountNbr,
                    r.deposit.day,
                    r.deposit.month,
