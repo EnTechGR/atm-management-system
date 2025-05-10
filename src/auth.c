@@ -172,22 +172,39 @@ int isUsernameTaken(const char *username) {
     struct User userChecker;
     char lowerInputUsername[50];
     char lowerFileUsername[50];
+    char line[256];
+    char usernameBuffer[50];
+    char passwordBuffer[128];
+
+    // Normalize input username to lowercase
     strncpy(lowerInputUsername, username, sizeof(lowerInputUsername) - 1);
     lowerInputUsername[sizeof(lowerInputUsername) - 1] = '\0';
     toLower(lowerInputUsername);
+
     if ((fp = fopen(USERS, "r")) == NULL) {
         printf("Error! opening file");
         exit(1);
     }
-    while (fscanf(fp, "%*d %s %s", userChecker.name, userChecker.password) != EOF) {
-        strncpy(lowerFileUsername, userChecker.name, sizeof(lowerFileUsername) - 1);
-        lowerFileUsername[sizeof(lowerFileUsername) - 1] = '\0';
-        toLower(lowerFileUsername);
-        if (strcmp(lowerInputUsername, lowerFileUsername) == 0) {
-            fclose(fp);
-            return 1; // Username found (case-insensitive), it's taken
+
+    while (fgets(line, sizeof(line), fp)) {
+        int id;
+
+        // Read each line: ID, username, password
+        if (sscanf(line, "%d %49s %127s", &id, usernameBuffer, passwordBuffer) == 3) {
+            strncpy(userChecker.name, usernameBuffer, sizeof(userChecker.name));
+            userChecker.name[sizeof(userChecker.name) - 1] = '\0';
+
+            strncpy(lowerFileUsername, userChecker.name, sizeof(lowerFileUsername) - 1);
+            lowerFileUsername[sizeof(lowerFileUsername) - 1] = '\0';
+            toLower(lowerFileUsername);
+
+            if (strcmp(lowerInputUsername, lowerFileUsername) == 0) {
+                fclose(fp);
+                return 1; // Username is taken
+            }
         }
     }
+
     fclose(fp);
     return 0; // Username not found
 }
