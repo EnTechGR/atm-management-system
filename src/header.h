@@ -42,6 +42,7 @@ const char *getPassword(struct User u);
 void createNewAcc(struct User u);
 void updateAccount(struct User u);
 void checkAccountDetails(struct User u);
+void makeTransaction(struct User u);
 void checkAllAccounts(struct User u);
 void saveAccountToFile(FILE *ptr, struct User u, struct Record r);
 void stayOrReturn(int notGood, void (*f)(struct User), struct User u); // Corrected function pointer syntax

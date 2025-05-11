@@ -543,3 +543,161 @@ void checkAccountDetails(struct User u) {
 
     success(u);
 }
+
+
+void makeTransaction(struct User u) {
+    struct Record r;
+    char userName[50];
+    int accountNbr, found = 0, hasAccounts = 0;
+    double amount;
+    int transactionType; // 1 for deposit, 2 for withdrawal
+
+    FILE *pf = fopen(RECORDS, "r");
+    if (pf == NULL) {
+        printf("Error opening records file.\n");
+        return;
+    }
+
+    system("clear");
+    printf("======= Available Accounts for %s =======\n", u.name);
+
+    // List user accounts
+    while (getAccountFromFile(pf, userName, &r)) {
+        if (strcmp(userName, u.name) == 0) {
+            printf(" - %d (Type: %s, Balance: $%.2f)\n", r.accountNbr, r.accountType, r.amount);
+            hasAccounts = 1;
+        }
+    }
+
+    if (!hasAccounts) {
+        printf("No accounts found.\n");
+        fclose(pf);
+        success(u);
+        return;
+    }
+
+    // Get account number for transaction
+    printf("\nEnter the account number you want to use for the transaction: ");
+    scanf("%d", &accountNbr);
+    rewind(pf);
+
+    // Open temp file to rewrite updated records
+    FILE *pfTemp = fopen("./data/temp.txt", "w");
+    if (pfTemp == NULL) {
+        printf("Error creating temporary file.\n");
+        fclose(pf);
+        return;
+    }
+
+    // Process each record
+    while (getAccountFromFile(pf, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNbr) {
+            found = 1;
+
+            // Check account type restrictions
+            if (strcmp(r.accountType, "fixed01") == 0 ||
+                strcmp(r.accountType, "fixed02") == 0 ||
+                strcmp(r.accountType, "fixed03") == 0) {
+                printf("✖ Transactions are not allowed on %s accounts.\n", r.accountType);
+                fclose(pf);
+                fclose(pfTemp);
+                remove("./data/temp.txt");
+                success(u);
+                return;
+            }
+
+            // Get transaction type
+            printf("\nSelect transaction type:\n1. Deposit\n2. Withdrawal\nEnter choice: ");
+            scanf("%d", &transactionType);
+            if (transactionType != 1 && transactionType != 2) {
+                printf("Invalid choice.\n");
+                fclose(pf);
+                fclose(pfTemp);
+                remove("./data/temp.txt");
+                success(u);
+                return;
+            }
+
+            char amountStr[100];
+            int validAmount = 0;
+
+            while (!validAmount) {
+                printf("Enter the amount (max 2 decimal places, use '.' not ','): ");
+                scanf("%s", amountStr);
+
+                // Check for invalid comma
+                if (strchr(amountStr, ',') != NULL) {
+                    printf("✖ Use '.' instead of ',' for decimal point.\n");
+                    continue;
+                }
+
+                // Validate numeric format with at most 2 decimal places
+                char *dot = strchr(amountStr, '.');
+
+                if (dot != NULL) {
+                    int decimalPlaces = strlen(dot + 1);
+                    if (decimalPlaces > 2) {
+                        printf("✖ Too many decimal places. Please enter up to 2 decimals only.\n");
+                        continue;
+                    }
+                }
+
+                // Check that the string is a valid number
+                int isValidFormat = 1;
+                for (int i = 0; amountStr[i]; i++) {
+                    if (!isdigit(amountStr[i]) && amountStr[i] != '.') {
+                        isValidFormat = 0;
+                        break;
+                    }
+                }
+
+                if (!isValidFormat) {
+                    printf("✖ Invalid characters in amount. Use only digits and '.'\n");
+                    continue;
+                }
+
+                amount = atof(amountStr);
+                if (amount <= 0) {
+                    printf("✖ Amount must be a positive number.\n");
+                    continue;
+                }
+
+                validAmount = 1;
+            }
+
+            if (transactionType == 1) {
+                r.amount += amount;
+                printf("✔ $%.2f deposited successfully.\n", amount);
+            } else {
+                if (amount > r.amount) {
+                    printf("✖ Insufficient funds.\n");
+                    fclose(pf);
+                    fclose(pfTemp);
+                    remove("./data/temp.txt");
+                    success(u);
+                    return;
+                }
+                r.amount -= amount;
+                printf("✔ $%.2f withdrawn successfully.\n", amount);
+            }
+        }
+
+        // Write updated or unchanged record
+        struct User tempUser = u;
+        strncpy(tempUser.name, userName, sizeof(tempUser.name));
+        saveAccountToFile(pfTemp, tempUser, r);
+    }
+
+    fclose(pf);
+    fclose(pfTemp);
+
+    if (!found) {
+        printf("✖ Account not found or doesn't belong to you.\n");
+        remove("./data/temp.txt");
+    } else {
+        remove(RECORDS);
+        rename("./data/temp.txt", RECORDS);
+    }
+
+    success(u);
+}

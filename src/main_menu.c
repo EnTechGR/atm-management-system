@@ -64,6 +64,7 @@ void mainMenu(struct User u) {
                     case 5:
                         // student TODO : add your **Make transaction** function
                         // here
+                        makeTransaction(u);
                         validOption = 1;
                         break;
                     case 6:

@@ -4,7 +4,7 @@
 
 2 2 Michel 123 10/10/2020 UK 1234123 12345.30 savings
 
-3 2 marinos 1 2/4/2025 northmacedonia 1234567890 12.00 savings
+3 2 marinos 1 2/4/2025 northmacedonia 1234567890 0.00 savings
 
 4 2 marinos 2 5/11/2025 denmark 4545454545 45.00 fixed03
 
