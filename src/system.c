@@ -708,6 +708,7 @@ void removeAccount(struct User u) {
     int accountToRemove;
     int found = 0;
 
+    // Open the file for reading
     FILE *pfRead = fopen(RECORDS, "r");
     if (pfRead == NULL) {
         printf("Error opening file for reading.\n");
@@ -761,7 +762,7 @@ void removeAccount(struct User u) {
         }
     } while (!validAccount);
 
-    // Open the file for reading and temporary file for updating
+    // Open the original file and a temporary file for updating
     FILE *pfReadAgain = fopen(RECORDS, "r");
     FILE *pfTemp = fopen("./data/temp.txt", "w");
 
@@ -785,21 +786,32 @@ void removeAccount(struct User u) {
         }
     }
 
-    // Rewind file to remove the selected account
+    // Rewind file to process and write to temp file
     rewind(pfReadAgain);
 
+    // Process the file and write all records to temp file, excluding the account to remove
     while (getAccountFromFile(pfReadAgain, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr != accountToRemove) {
-            struct User tempUser = u;
-            strncpy(tempUser.name, userName, sizeof(tempUser.name));
-            saveAccountToFile(pfTemp, tempUser, r);
+        if (!(strcmp(userName, u.name) == 0 && r.accountNbr == accountToRemove)) {
+            // Use the userName and the user ID from the record itself
+            fprintf(pfTemp, "%d %d %s %d %d/%d/%d %s %s %.2lf %s\n\n",
+                    r.id,
+                    r.userId,
+                    userName,
+                    r.accountNbr,
+                    r.deposit.month,
+                    r.deposit.day,
+                    r.deposit.year,
+                    r.country,
+                    r.phone,
+                    r.amount,
+                    r.accountType);
         }
     }
 
     fclose(pfReadAgain);
     fclose(pfTemp);
 
-    // Remove the original file and rename the temporary file
+    // Remove the original file and rename the temporary file to replace it
     remove(RECORDS);
     rename("./data/temp.txt", RECORDS);
 
@@ -807,4 +819,3 @@ void removeAccount(struct User u) {
 
     success(u);
 }
-
