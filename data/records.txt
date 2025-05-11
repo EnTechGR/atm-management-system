@@ -1,24 +1,20 @@
-0 2 Alice 0 10/10/2012 Africa 291321234 22432.52 saving
+0 2 Alice 0 10/10/2012 Africa 291321234 22432.52 savings
 
 1 2 Michel 2 2/5/2001 Portugal 123543455 10023.23 fixed01
 
-2 2 Michel 123 10/10/2020 UK 1234123 12345.30 saving
+2 2 Michel 123 10/10/2020 UK 1234123 12345.30 savings
 
-3 2 marinos 12 5/4/2025 spain 6948836102 2.00 sa
+3 2 marinos 1 2/4/2025 northmacedonia 1234567890 12.00 savings
 
-4 2 marinos 12345 5/4/2025 greece 0 0.00 fg
+4 2 marinos 2 5/11/2025 denmark 4545454545 45.00 fixed03
 
-5 2 marinos 23 5/4/2025 fr 3232323 12.00 saving
+5 2 marinos 3 5/11/2025 greece 1111111111 23.00 savings
 
-6 2 marinos 1 5/10/2025 Greece -1641098490saving 12.00 saving
+6 2 marinos 4 5/11/2025 greece 1111111111 12.00 current
 
-7 2 marinos 2 5/10/2025 re 1234567890 12.00 saving
+7 2 marinos 5 5/11/2025 greece 1111111111 12.00 fixed01
 
-8 2 marinos 3 5/10/2025 ew 1234567890 0.00 current
+8 2 marinos 6 5/11/2025 greece 1111111111 12.00 fixed02
 
-9 2 marinos 4 5/10/2025 france 1234567890 0.01 current
-
-10 2 marinos 5 5/10/2025 we 0000000001 12.00 current
-
-11 2 marinos 6 5/10/2025 greece 1234567890 12.00 fixed01
+9 2 marinos 7 5/11/2025 greece 1111111111 12.00 fixed03
 

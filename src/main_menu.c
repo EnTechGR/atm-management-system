@@ -54,6 +54,7 @@ void mainMenu(struct User u) {
                     case 3:
                         // student TODO : add your **Check the details of existing accounts** function
                         // here
+                        checkAccountDetails(u);
                         validOption = 1;
                         break;
                     case 4:

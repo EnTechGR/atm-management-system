@@ -121,6 +121,19 @@ const char *RECORDS = "./data/records.txt";
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h> // For sleep (if needed for a small delay)
+#include <termios.h> // For terminal settings
+
+static int getch(void) {
+    struct termios oldt, newt;
+    int ch;
+    tcgetattr(STDIN_FILENO, &oldt);           // Save current terminal settings
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);         // Disable buffered I/O and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // Apply new settings
+    ch = getchar();                           // Read one char (no Enter needed)
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // Restore old settings
+    return ch;
+}
 
 
 int getAccountFromFile(FILE *ptr, char name[50], struct Record *r)
@@ -356,24 +369,30 @@ void updateAccount(struct User u) {
         return;
     }
 
-    // Ask for account number
-    printf("Enter the account number you want to update: ");
-    scanf("%d", &accountToUpdate);
-    getchar(); // consume newline
-
     // Validate account number exists
     int valid = 0;
-    for (int i = 0; i < existingCount; i++) {
-        if (existingAccounts[i] == accountToUpdate) {
-            valid = 1;
-            break;
+    do {
+        printf("Enter the account number you want to update: ");
+        if (scanf("%d", &accountToUpdate) != 1) {
+            printf("✖ Invalid input. Please enter a number.\n");
+            while (getchar() != '\n'); // Clear input buffer
+            continue;
         }
-    }
-    if (!valid) {
-        printf("✖ Invalid account number selected.\n");
-        fclose(pfRead);
-        return;
-    }
+
+        for (int i = 0; i < existingCount; i++) {
+            if (existingAccounts[i] == accountToUpdate) {
+                valid = 1;
+                break;
+            }
+        }
+
+        if (!valid) {
+            printf("✖ Invalid account number. Please try again.\n");
+        }
+
+    } while (!valid);
+
+    getchar(); // consume leftover newline
 
     // Rewind file for second pass
     rewind(pfRead);
@@ -395,14 +414,16 @@ void updateAccount(struct User u) {
             printf("2. Phone number\n");
             printf("Enter your choice: ");
             scanf("%d", &choice);
-            getchar(); // consume newline
+            getch(); // consume newline
 
             if (choice == 1) {
                 getValidCountry(r.country);
             } else if (choice == 2) {
                 getValidPhone(r.phone);
             } else {
-                printf("Invalid choice. Returning to main menu.\n");
+                printf("Invalid choice. Returning to main menu, press any key.\n");
+                getch(); // Consume leftover newline
+                //getch(); // Wait for user to press Enter
                 fclose(pfRead);
                 fclose(pfTemp);
                 remove("./data/temp.txt");
@@ -428,6 +449,96 @@ void updateAccount(struct User u) {
     } else {
         remove(RECORDS);
         rename("./data/temp.txt", RECORDS);
+    }
+
+    success(u);
+}
+
+void checkAccountDetails(struct User u) {
+    struct Record r;
+    char userName[50];
+    int accountNbr;
+    int found = 0, hasAccounts = 0;
+    //int existingAccounts[100];
+    //int existingCount = 0;
+
+    FILE *pf = fopen(RECORDS, "r");
+    if (pf == NULL) {
+        printf("Error opening file.\n");
+        return;
+    }
+
+    system("clear");
+    printf("======= Your Available Accounts =======\n");
+
+    // Just a listing of user's account numbers
+    while (getAccountFromFile(pf, userName, &r)) {
+        if (strcmp(userName, u.name) == 0) {
+            printf(" - %d\n", r.accountNbr);
+            // if (existingCount < 100) {
+            //     existingAccounts[existingCount++] = r.accountNbr;
+            // }
+            hasAccounts = 1;
+        }
+    }
+
+    if (!hasAccounts) {
+        printf(" (None)\n");
+        fclose(pf);
+        success(u);
+        return;
+    }
+
+    // Rewind the file to search for the selected account
+    rewind(pf);
+
+    printf("\nEnter the account number you want to check in detail: ");
+    if (scanf("%d", &accountNbr) != 1) {
+        printf("Invalid input!\n");
+        fclose(pf);
+        while (getchar() != '\n'); // clear input buffer
+        return;
+    }
+
+    while (getAccountFromFile(pf, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNbr) {
+            found = 1;
+            printf("\n✔ Account found!\n");
+            printf("\nAccount number: %d", r.accountNbr);
+            printf("\nDeposit Date: %d/%d/%d", r.deposit.day, r.deposit.month, r.deposit.year);
+            printf("\nCountry: %s", r.country);
+            printf("\nPhone number: %s", r.phone);
+            printf("\nAmount deposited: $%.2f", r.amount);
+            printf("\nType of Account: %s\n", r.accountType);
+
+            double interestRate = 0.0;
+            if (strcmp(r.accountType, "savings") == 0) {
+                interestRate = 0.07;
+            } else if (strcmp(r.accountType, "fixed01") == 0) {
+                interestRate = 0.04;
+            } else if (strcmp(r.accountType, "fixed02") == 0) {
+                interestRate = 0.05;
+            } else if (strcmp(r.accountType, "fixed03") == 0) {
+                interestRate = 0.08;
+            }
+
+            if (interestRate > 0.0) {
+                double interest = r.amount * interestRate / 12; // Monthly interest
+                printf("\nYou will get $%.2f as interest on day %d of every month.\n", interest, r.deposit.day);
+            } else if (strcmp(r.accountType, "current") == 0) {
+                printf("\nYou will not get interests because the account is of type current.\n");
+            } else {
+                printf("\nUnknown account type. Cannot calculate interest.\n");
+            }
+
+            break;
+        }
+    }
+
+    fclose(pf);
+
+    if (!found) {
+        printf("\n✖ Account not found or does not belong to you.\n");
     }
 
     success(u);

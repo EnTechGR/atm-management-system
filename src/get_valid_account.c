@@ -10,13 +10,13 @@ int accountNumberInList(int *list, int size, int number) {
 
 // Sanitize and validate account type input
 void getValidAccountType(char accountType[10]) {
-    const char *validTypes[] = {"saving", "current", "fixed01", "fixed02", "fixed03"};
+    const char *validTypes[] = {"savings", "current", "fixed01", "fixed02", "fixed03"};
     int numTypes = sizeof(validTypes) / sizeof(validTypes[0]);
     int choice = -1;
 
     while (choice < 1 || choice > numTypes) {
         printf("\nChoose the type of account:\n");
-        printf("  1. saving\n");
+        printf("  1. savings\n");
         printf("  2. current\n");
         printf("  3. fixed01 (for 1 year)\n");
         printf("  4. fixed02 (for 2 years)\n");
