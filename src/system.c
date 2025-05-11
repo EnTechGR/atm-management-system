@@ -848,7 +848,27 @@ int userExistsInRecords(const char *username) {
     return found;
 }
 
+// Helper function to get all the account IDs of a specific user
+void getAccountIDsForUser(const char *username, int *accountIDs, int *count) {
+    FILE *pfRead = fopen(RECORDS, "r");
+    if (!pfRead) {
+        printf("Error opening records file.\n");
+        return;
+    }
 
+    struct Record r;
+    char userName[50];
+    *count = 0;
+
+    while (getAccountFromFile(pfRead, userName, &r)) {
+        if (strcmp(userName, username) == 0) {
+            accountIDs[*count] = r.accountNbr;  // Store the account number
+            (*count)++;
+        }
+    }
+
+    fclose(pfRead);
+}
 
 void transferOwnership(struct User u) {
     struct Record r;
@@ -873,15 +893,31 @@ void transferOwnership(struct User u) {
     scanf("%s", newOwnerUsername);
 
     // Check if new owner exists
-    // char newOwnerFile[100];
-    // sprintf(newOwnerFile, "%s.txt", newOwnerUsername);
-    // FILE *newUserFile = fopen(newOwnerFile, "r");
     if (!userExistsInRecords(newOwnerUsername)) {
         printf("✖ User '%s' does not exist.\n", newOwnerUsername);
         success(u);
         return;
     }
-    // fclose(newUserFile);
+
+    // Get the list of account IDs for the new owner
+    int newOwnerAccountIDs[100];
+    int newOwnerAccountCount = 0;
+    getAccountIDsForUser(newOwnerUsername, newOwnerAccountIDs, &newOwnerAccountCount);
+
+    // Check if the account number exists in the new owner's account list
+    int accountExists = 0;
+    for (int i = 0; i < newOwnerAccountCount; i++) {
+        if (newOwnerAccountIDs[i] == accountToTransfer) {
+            accountExists = 1;
+            break;
+        }
+    }
+
+    if (accountExists) {
+        printf("✖ User '%s' already has an account with this ID. Please choose a different account ID.\n", newOwnerUsername);
+        success(u);
+        return;
+    }
 
     // Read records and write to temp, updating ownership
     FILE *pfRead = fopen(RECORDS, "r");
@@ -901,7 +937,7 @@ void transferOwnership(struct User u) {
 
             // Update ownership
             strcpy(userName, newOwnerUsername);
-            r.userId = getUserIdByName(newOwnerUsername); // You'll need to implement this helper if not already available
+            r.userId = getUserIdByName(newOwnerUsername); // Update the user ID for the new owner
         }
 
         // Save record (updated or not)
