@@ -76,6 +76,7 @@ void mainMenu(struct User u) {
                     case 7:
                         // student TODO : add your **Transfer owner** function
                         // here
+                        transferOwnership(u);
                         validOption = 1;
                         break;
                     case 8:

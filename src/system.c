@@ -111,17 +111,14 @@
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h> // For sleep (if needed for a small delay)
+#include <termios.h> // For terminal settings
 #include <ctype.h>
 
 const char *RECORDS = "./data/records.txt";
 
 // Get today's date and validate user input for date
-#include "header.h"
-#include <time.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h> // For sleep (if needed for a small delay)
-#include <termios.h> // For terminal settings
+
 
 static int getch(void) {
     struct termios oldt, newt;
@@ -816,6 +813,114 @@ void removeAccount(struct User u) {
     rename("./data/temp.txt", RECORDS);
 
     printf("✔ Account number %d has been successfully removed.\n", accountToRemove);
+
+    success(u);
+}
+
+static int getUserIdByName(const char *username) {
+    char filename[100];
+    sprintf(filename, "./data/%s.txt", username); // Adjust path if needed
+    FILE *f = fopen(filename, "r");
+    int id = -1;
+    if (f) {
+        fscanf(f, "%d", &id); // Assuming user ID is stored as first line in the user file
+        fclose(f);
+    }
+    return id;
+}
+
+int userExistsInRecords(const char *username) {
+    FILE *f = fopen(RECORDS, "r");
+    if (!f) return 0;
+
+    struct Record r;
+    char recordUsername[50];
+    int found = 0;
+
+    while (getAccountFromFile(f, recordUsername, &r)) {
+        if (strcmp(recordUsername, username) == 0) {
+            found = 1;
+            break;
+        }
+    }
+
+    fclose(f);
+    return found;
+}
+
+
+
+void transferOwnership(struct User u) {
+    struct Record r;
+    char userName[50];
+    int accountToTransfer;
+    char newOwnerUsername[50];
+    int found = 0;
+
+    system("clear");
+    printf("======= Transfer Account Ownership =======\n");
+
+    printf("Enter the account number you want to transfer: ");
+    if (scanf("%d", &accountToTransfer) != 1) {
+        printf("✖ Invalid input.\n");
+        while (getchar() != '\n');
+        success(u);
+        return;
+    }
+
+    // Prompt for the new owner's username
+    printf("Enter the username of the new owner: ");
+    scanf("%s", newOwnerUsername);
+
+    // Check if new owner exists
+    // char newOwnerFile[100];
+    // sprintf(newOwnerFile, "%s.txt", newOwnerUsername);
+    // FILE *newUserFile = fopen(newOwnerFile, "r");
+    if (!userExistsInRecords(newOwnerUsername)) {
+        printf("✖ User '%s' does not exist.\n", newOwnerUsername);
+        success(u);
+        return;
+    }
+    // fclose(newUserFile);
+
+    // Read records and write to temp, updating ownership
+    FILE *pfRead = fopen(RECORDS, "r");
+    FILE *pfTemp = fopen("./data/temp.txt", "w");
+
+    if (pfRead == NULL || pfTemp == NULL) {
+        printf("✖ Error accessing account records.\n");
+        if (pfRead) fclose(pfRead);
+        if (pfTemp) fclose(pfTemp);
+        success(u);
+        return;
+    }
+
+    while (getAccountFromFile(pfRead, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToTransfer) {
+            found = 1;
+
+            // Update ownership
+            strcpy(userName, newOwnerUsername);
+            r.userId = getUserIdByName(newOwnerUsername); // You'll need to implement this helper if not already available
+        }
+
+        // Save record (updated or not)
+        struct User tempUser = u;
+        strncpy(tempUser.name, userName, sizeof(tempUser.name));
+        saveAccountToFile(pfTemp, tempUser, r);
+    }
+
+    fclose(pfRead);
+    fclose(pfTemp);
+
+    if (!found) {
+        printf("✖ Account not found or doesn't belong to you.\n");
+        remove("./data/temp.txt");
+    } else {
+        remove(RECORDS);
+        rename("./data/temp.txt", RECORDS);
+        printf("✔ Account %d successfully transferred to %s.\n", accountToTransfer, newOwnerUsername);
+    }
 
     success(u);
 }
