@@ -701,3 +701,110 @@ void makeTransaction(struct User u) {
 
     success(u);
 }
+
+void removeAccount(struct User u) {
+    struct Record r;
+    char userName[50];
+    int accountToRemove;
+    int found = 0;
+
+    FILE *pfRead = fopen(RECORDS, "r");
+    if (pfRead == NULL) {
+        printf("Error opening file for reading.\n");
+        return;
+    }
+
+    system("clear");
+    printf("======= Remove Account =======\n");
+
+    // List all accounts for the user
+    printf("Existing account numbers for %s:\n", u.name);
+    int existingAccounts[100];
+    int existingCount = 0;
+    while (getAccountFromFile(pfRead, userName, &r)) {
+        if (strcmp(userName, u.name) == 0) {
+            printf(" - %d (Balance: $%.2f, Type: %s)\n", r.accountNbr, r.amount, r.accountType);
+            existingAccounts[existingCount++] = r.accountNbr;
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("No accounts found for user %s.\n", u.name);
+        fclose(pfRead);
+        success(u);
+        return;
+    }
+
+    fclose(pfRead);
+
+    // Ask user to choose account for removal
+    int validAccount = 0;
+    do {
+        printf("\nEnter the account number you want to remove: ");
+        if (scanf("%d", &accountToRemove) != 1) {
+            printf("Invalid input. Please enter a valid account number.\n");
+            while (getchar() != '\n');  // clear buffer
+            continue;
+        }
+
+        validAccount = 0;
+        for (int i = 0; i < existingCount; i++) {
+            if (existingAccounts[i] == accountToRemove) {
+                validAccount = 1;
+                break;
+            }
+        }
+
+        if (!validAccount) {
+            printf("Account not found. Please try again.\n");
+        }
+    } while (!validAccount);
+
+    // Open the file for reading and temporary file for updating
+    FILE *pfReadAgain = fopen(RECORDS, "r");
+    FILE *pfTemp = fopen("./data/temp.txt", "w");
+
+    if (pfReadAgain == NULL || pfTemp == NULL) {
+        printf("Error opening files.\n");
+        if (pfReadAgain) fclose(pfReadAgain);
+        if (pfTemp) fclose(pfTemp);
+        return;
+    }
+
+    // Check if the account has a balance greater than 0
+    while (getAccountFromFile(pfReadAgain, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToRemove) {
+            if (r.amount > 0) {
+                printf("This account has a balance of $%.2f. You must withdraw the funds before deletion.\n", r.amount);
+                fclose(pfReadAgain);
+                fclose(pfTemp);
+                success(u);
+                return;
+            }
+        }
+    }
+
+    // Rewind file to remove the selected account
+    rewind(pfReadAgain);
+
+    while (getAccountFromFile(pfReadAgain, userName, &r)) {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr != accountToRemove) {
+            struct User tempUser = u;
+            strncpy(tempUser.name, userName, sizeof(tempUser.name));
+            saveAccountToFile(pfTemp, tempUser, r);
+        }
+    }
+
+    fclose(pfReadAgain);
+    fclose(pfTemp);
+
+    // Remove the original file and rename the temporary file
+    remove(RECORDS);
+    rename("./data/temp.txt", RECORDS);
+
+    printf("✔ Account number %d has been successfully removed.\n", accountToRemove);
+
+    success(u);
+}
+

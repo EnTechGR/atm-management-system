@@ -70,6 +70,7 @@ void mainMenu(struct User u) {
                     case 6:
                         // student TODO : add your **Remove existing account** function
                         // here
+                        removeAccount(u);
                         validOption = 1;
                         break;
                     case 7:
