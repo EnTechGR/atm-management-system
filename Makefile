@@ -6,7 +6,7 @@ OBJ = $(SRC:.c=.o)
 TARGET = atm
 
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ) -lcrypto
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ) -lcrypto -lsqlite3
 
 src/%.o: src/%.c src/header.h
 	$(CC) $(CFLAGS) -c $< -o $@
