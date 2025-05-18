@@ -1,0 +1,1 @@
+int initialize_database(const char* db_path);

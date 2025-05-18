@@ -87,7 +87,6 @@ void initMenu(struct User *u) {
                 if (loginMenu(username, password)) {
                     // If login successful, get the full user details including ID
                     getUserById(username, u);
-                    printf("DEBUG - User ID loaded: %d\n", u->id);
                     return;
                 }
                 break;
