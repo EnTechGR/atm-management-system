@@ -3,6 +3,20 @@
 #include <stdlib.h> // Include for exit()
 #include <string.h> // Include for string manipulation (optional, but good practice)
 #include <ctype.h>  // Include for character type checking (isdigit)
+#include <termios.h>
+#include <unistd.h>
+
+static int getch(void) {
+    struct termios oldt, newt;
+    int ch;
+    tcgetattr(STDIN_FILENO, &oldt);           // Save current terminal settings
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);         // Disable buffered I/O and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // Apply new settings
+    ch = getchar();                           // Read one char (no Enter needed)
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // Restore old settings
+    return ch;
+}
 
 void getUserById(char username[50], struct User *u) {
     FILE *fp;
@@ -48,7 +62,7 @@ void initMenu(struct User *u) {
         printf("\n\t\t\t\t3. Exit");
         printf("\n\n\t\t\t\tEnter your choice: ");
         scanf("%d", &choice);
-        getchar(); // Consume the newline character
+        getch(); // Consume the newline character
         
         switch (choice) {
             case 1:
@@ -66,8 +80,8 @@ void initMenu(struct User *u) {
                 exit(0);
             default:
                 printf("\n\nInvalid choice. Please try again.\n");
-                printf("\n\nPress any key to continue...");
-                getchar();
+                printf("\n\nPress any key to continue...\n");
+                getch();
         }
     }
 }

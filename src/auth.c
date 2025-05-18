@@ -8,9 +8,9 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <unistd.h> 
+#include <sqlite3.h>
 #include "header.h" // Assuming header.h contains the definition for struct User
 
-char *USERS = "./data/users.txt";
 
 int getch(void) {
     struct termios oldt, newt;
@@ -162,93 +162,91 @@ int loginMenu(char a[50], char pass[50]) {
 
 
 const char *getPassword(struct User u) {
-    FILE *fp;
-    struct User userChecker;
-    static char stored_password[128]; // Increased size to match the hashed password format
-    
-    if ((fp = fopen("./data/users.txt", "r")) == NULL) {
-        printf("Error! opening file");
-        exit(1);
+    static char stored_password[128];
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        return "no user found";
     }
-    
-    while (fscanf(fp, "%*d %s %s", userChecker.name, stored_password) != EOF) {
-        if (strcmp(userChecker.name, u.name) == 0) {
-            fclose(fp);
-            return stored_password;
-        }
+
+    const char *sql = "SELECT password FROM users WHERE LOWER(name) = LOWER(?)";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return "no user found";
     }
-    
-    fclose(fp);
-    return "no user found";
+
+    sqlite3_bind_text(stmt, 1, u.name, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        strncpy(stored_password, (const char *)sqlite3_column_text(stmt, 0), sizeof(stored_password) - 1);
+        stored_password[sizeof(stored_password) - 1] = '\0';
+    } else {
+        strcpy(stored_password, "no user found");
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return stored_password;
 }
+
 
 int isUsernameTaken(const char *username) {
-    FILE *fp;
-    struct User userChecker;
-    char lowerInputUsername[50];
-    char lowerFileUsername[50];
-    char line[256];
-    char usernameBuffer[50];
-    char passwordBuffer[128];
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    int result = 0;
 
-    // Normalize input username to lowercase
-    strncpy(lowerInputUsername, username, sizeof(lowerInputUsername) - 1);
-    lowerInputUsername[sizeof(lowerInputUsername) - 1] = '\0';
-    toLower(lowerInputUsername);
-
-    if ((fp = fopen(USERS, "r")) == NULL) {
-        printf("Error! opening file");
-        exit(1);
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        return 1;
     }
 
-    while (fgets(line, sizeof(line), fp)) {
-        int id;
-
-        // Read each line: ID, username, password
-        if (sscanf(line, "%d %49s %127s", &id, usernameBuffer, passwordBuffer) == 3) {
-            strncpy(userChecker.name, usernameBuffer, sizeof(userChecker.name));
-            userChecker.name[sizeof(userChecker.name) - 1] = '\0';
-
-            strncpy(lowerFileUsername, userChecker.name, sizeof(lowerFileUsername) - 1);
-            lowerFileUsername[sizeof(lowerFileUsername) - 1] = '\0';
-            toLower(lowerFileUsername);
-
-            if (strcmp(lowerInputUsername, lowerFileUsername) == 0) {
-                fclose(fp);
-                return 1; // Username is taken
-            }
-        }
+    const char *sql = "SELECT 1 FROM users WHERE LOWER(name) = LOWER(?)";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return 1;
     }
 
-    fclose(fp);
-    return 0; // Username not found
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        result = 1;
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return result;
 }
 
+
 void registerMenu(char a[50], char pass[50]) {
-    FILE *read_fp = NULL;
-    FILE *write_fp = NULL;
     struct termios oflags, nflags;
-    struct {
-        int index;
-        char name[50];
-        char password[128]; // Increased size to store salt + hash in hex
-        unsigned char salt[16]; // 16 bytes of salt
-    } users[100];
-    int user_count = 0;
     char sanitized_name[50];
     int i;
-    unsigned char hash[SHA256_DIGEST_LENGTH]; // 32 bytes for SHA-256
-    unsigned char salt[16]; // 16 bytes of salt
-    char hash_hex[65]; // 32 bytes * 2 chars per byte + null terminator
-    char salt_hex[33]; // 16 bytes * 2 chars per byte + null terminator
-    char combined_hash[128]; // Combined salt + hash in hex format
-    
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned char salt[16];
+    char hash_hex[65];
+    char salt_hex[33];
+    char combined_hash[128];
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+
     system("clear");
-    printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Registration:");
+    printf("\n\n\n\t\t\t\t\t Bank Management System\n\t\t\t\t\t User Registration:");
     printf("\n\nEnter the user name:");
     fgets(a, 50, stdin);
     a[strcspn(a, "\n")] = 0;
-    
+
     // Check for invalid characters in username
     for (i = 0; a[i] != '\0'; i++) {
         if (!isalnum(a[i])) {
@@ -258,24 +256,24 @@ void registerMenu(char a[50], char pass[50]) {
             return;
         }
     }
-    
+
     // Username is valid, copy it to sanitized_name
     strcpy(sanitized_name, a);
-    
+
     if (strlen(sanitized_name) == 0) {
         printf("\n\nUsername cannot be empty.\n");
         printf("\n\nPress any key to continue...");
         getch();
         return;
     }
-    
+
     if (isUsernameTaken(sanitized_name)) {
         printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", sanitized_name);
         printf("\n\nPress any key to continue...");
         getch();
         return;
     }
-    
+
     // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
     nflags = oflags;
@@ -285,7 +283,7 @@ void registerMenu(char a[50], char pass[50]) {
         perror("tcsetattr");
         exit(1);
     }
-    
+
     char confirm_pass[50];
 
     printf("\n\nEnter the password:");
@@ -308,7 +306,7 @@ void registerMenu(char a[50], char pass[50]) {
         getch();
         return;
     }
-    
+
     if (strchr(pass, ' ') != NULL) {
         printf("\n\nPassword cannot contain spaces. Registration aborted.\n");
         printf("\n\nPress any key to continue...");
@@ -318,44 +316,43 @@ void registerMenu(char a[50], char pass[50]) {
 
     // Generate a random salt
     generateSalt(salt, sizeof(salt));
-    
+
     // Hash the password with salt
     hashPassword(pass, salt, sizeof(salt), hash);
-    
+
     // Convert salt and hash to hex strings
     bin2hex(salt, sizeof(salt), salt_hex);
     bin2hex(hash, sizeof(hash), hash_hex);
-    
+
     // Combine salt and hash for storage (format: salt$hash)
     sprintf(combined_hash, "%s$%s", salt_hex, hash_hex);
-    
-    // Read all existing users
-    if ((read_fp = fopen(USERS, "r")) != NULL) {
-        while (fscanf(read_fp, "%d %s %s", &users[user_count].index, users[user_count].name, users[user_count].password) == 3) {
-            user_count++;
-        }
-        fclose(read_fp);
-    }
-    
-    // Add the new user to the array
-    users[user_count].index = user_count;
-    strcpy(users[user_count].name, sanitized_name);
-    strcpy(users[user_count].password, combined_hash);
-    user_count++;
-    
-    // Rewrite the entire file with updated indices
-    if ((write_fp = fopen(USERS, "w")) != NULL) {
-        for (int i = 0; i < user_count; i++) {
-            fprintf(write_fp, "%d %s %s\n", users[i].index, users[i].name, users[i].password);
-        }
-        fclose(write_fp);
-    } else {
-        perror("Error opening users file for writing");
+
+    // Database interaction should happen AFTER successful data collection and validation
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return;
     }
-    
+
+    const char *sql = "INSERT INTO users (name, password) VALUES (?, ?)";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare insert statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, sanitized_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, combined_hash, -1, SQLITE_TRANSIENT);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        fprintf(stderr, "Failed to execute insert statement: %s\n", sqlite3_errmsg(db));
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
     printf("\n\nUser %s registered successfully!\n", sanitized_name);
     printf("\n\nPress any key to continue...");
     getch();
 }
-
