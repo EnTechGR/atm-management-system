@@ -16,3 +16,5 @@
 
 9 2 marinos 7 5/11/2025 greece 1111111111 12.00 fixed03
 
+10 2 marinos 1 5/18/2025 greece 1111111111 0.10 savings
+
