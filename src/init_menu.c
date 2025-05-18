@@ -50,6 +50,7 @@ void getUserById(char username[50], struct User *u) {
 }
 
 void initMenu(struct User *u) {
+    char input[10];
     int choice;
     char username[50];
     char password[50];
@@ -61,8 +62,25 @@ void initMenu(struct User *u) {
         printf("\n\t\t\t\t2. Register");
         printf("\n\t\t\t\t3. Exit");
         printf("\n\n\t\t\t\tEnter your choice: ");
-        scanf("%d", &choice);
-        getch(); // Consume the newline character
+        fgets(input, sizeof(input), stdin);
+        input[strcspn(input, "\n")] = 0;  // Remove newline
+
+        int valid = 1;
+        for (int i = 0; input[i] != '\0'; i++) {
+            if (!isdigit((unsigned char)input[i])) {
+                valid = 0;
+                break;
+            }
+        }
+
+        if (!valid || strlen(input) == 0) {
+            printf("\n\nInvalid input. Please enter a number.\n");
+            printf("\n\nPress any key to continue...");
+            getch();
+            continue;
+        }
+
+        choice = atoi(input); 
         
         switch (choice) {
             case 1:
