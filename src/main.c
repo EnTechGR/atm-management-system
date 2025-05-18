@@ -6,14 +6,12 @@
 #include <sqlite3.h>
 
 
-
 int main()
 {
     if (initialize_database("./data/atm.db") != 0) {
         fprintf(stderr, "Failed to initialize database\n");
         return -1;
     }
-
     struct User u;
     
     initMenu(&u);
