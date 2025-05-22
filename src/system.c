@@ -5,6 +5,7 @@
 #include <unistd.h> // For sleep (if needed for a small delay)
 #include <termios.h> // For terminal settings
 #include <ctype.h>
+#include <sqlite3.h>
 #include "terminal_utils.h"
 #include "file_utils.h"
 
@@ -13,72 +14,97 @@ const char *RECORDS = "./data/records.txt";
 
 
 void createNewAcc(struct User u) {
-    struct Record r;
-    struct Record cr;
-    char userName[50];
-    int lastId = -1;
+    sqlite3 *db;
+    //char *errMsg = 0;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // Clear record memory
-    memset(&r, 0, sizeof(struct Record));
-    r.userId = u.id;
-
-    // Get the last record ID
-    FILE *pfRead = fopen(RECORDS, "r");
-    if (pfRead != NULL) {
-        while (getAccountFromFile(pfRead, userName, &cr)) {
-            if (cr.id > lastId) {
-                lastId = cr.id;
-            }
-        }
-        fclose(pfRead);
-    }
-    r.id = lastId + 1;
-
-    // Open file for reading and appending
-    FILE *pf = fopen(RECORDS, "a+");
-    if (pf == NULL) {
-        printf("Error opening file!\n");
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         exit(1);
     }
 
-    system("clear");
     printf("\t\t\t===== New record =====\n");
     printf("Creating account for user: %s\n", u.name);
 
-    // Show existing account numbers and store them
-    rewind(pf);
+    // Show existing account numbers
+    printf("Existing account numbers for %s:\n", u.name);
+    const char *select_sql = "SELECT account_id FROM accounts WHERE user_id = ?";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare select: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_int(stmt, 1, u.id);
     int existingAccounts[100];
     int existingCount = 0;
     int foundAny = 0;
 
-    printf("Existing account numbers for %s:\n", u.name);
-    while (getAccountFromFile(pf, userName, &cr)) {
-        if (strcmp(userName, u.name) == 0) {
-            printf(" - %d\n", cr.accountNbr);
-            if (existingCount < 100) {
-                existingAccounts[existingCount++] = cr.accountNbr;
-            }
-            foundAny = 1;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const unsigned char *acc_id = sqlite3_column_text(stmt, 0);
+        printf(" - %s\n", acc_id);
+        if (existingCount < 100) {
+            existingAccounts[existingCount++] = atoi((const char *)acc_id);
         }
+        foundAny = 1;
     }
     if (!foundAny) {
         printf(" (None)\n");
     }
 
-    // Input steps
+    sqlite3_finalize(stmt);
+
+    // Prepare account record
+    struct Record r;
+    memset(&r, 0, sizeof(r));
+    r.userId = u.id;
+
     getValidDate(&r.deposit);
     r.accountNbr = getValidAccountNumber(existingAccounts, existingCount);
     getValidCountry(r.country);
     getValidPhone(r.phone);
     getValidAmount(&r.amount);
     getValidAccountType(r.accountType);
-    r.userId = u.id;
 
-    // Save and finalize
-    fseek(pf, 0, SEEK_END);
-    saveAccountToFile(pf, u, r);
-    fclose(pf);
-    success(u);
+    // Insert into DB
+    const char *insert_sql =
+        "INSERT INTO accounts (user_id, account_id, creation_date, country, phone, balance, account_type) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?);";
+
+    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare insert: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    char accountIdStr[20];
+    snprintf(accountIdStr, sizeof(accountIdStr), "%d", r.accountNbr);
+
+    char dateStr[11]; // Format date as string
+    snprintf(dateStr, sizeof(dateStr), "%04d-%02d-%02d", r.deposit.year, r.deposit.month, r.deposit.day);
+
+    sqlite3_bind_int(stmt, 1, r.userId);
+    sqlite3_bind_text(stmt, 2, accountIdStr, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, dateStr, -1, SQLITE_STATIC);  // ← Corrected here
+    sqlite3_bind_text(stmt, 4, r.country, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, r.phone, -1, SQLITE_STATIC);
+    sqlite3_bind_double(stmt, 6, r.amount);
+    sqlite3_bind_text(stmt, 7, r.accountType, -1, SQLITE_STATIC);
+
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Insert failed: %s\n", sqlite3_errmsg(db));
+    } else {
+        success(u);
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 }
 
 

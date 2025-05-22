@@ -25,7 +25,7 @@ int initialize_database(const char* db_path) {
     const char *sql_accounts = "CREATE TABLE IF NOT EXISTS accounts ("
                            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                            "user_id INTEGER NOT NULL,"
-                           "account_id TEXT NOT NULL,"
+                           "account_id INTEGER NOT NULL,"
                            "creation_date TEXT NOT NULL,"
                            "country TEXT,"
                            "phone TEXT,"
