@@ -11,7 +11,7 @@
 
 
 const char *RECORDS = "./data/records.txt";
-
+sqlite3 *db;
 
 void createNewAcc(struct User u) {
     sqlite3 *db;
@@ -107,6 +107,124 @@ void createNewAcc(struct User u) {
     sqlite3_close(db);
 }
 
+void updateAccount(struct User u) {
+    sqlite3_stmt *stmt;
+    int rc;
+    int accountToUpdate;
+    int choice;
+    int valid = 0;
+
+    // Open database connection
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return;
+    }
+
+    // Step 1: List user's accounts
+    printf("======= Update Account =======\n");
+    printf("Existing account numbers for %s:\n", u.name);
+
+    const char *queryAccounts = "SELECT account_id FROM accounts WHERE user_id = ?";
+    rc = sqlite3_prepare_v2(db, queryAccounts, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_int(stmt, 1, u.id);
+
+    int count = 0;
+    int existingAccounts[100];
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int accountId = sqlite3_column_int(stmt, 0);
+        printf(" - %d\n", accountId);
+        if (count < 100) {
+            existingAccounts[count++] = accountId;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (count == 0) {
+        printf(" (None)\n");
+        sqlite3_close(db);  // Close db before returning!
+        return;
+    }
+
+    // Step 2: Prompt for account number
+    do {
+        printf("Enter the account number you want to update: ");
+        if (scanf("%d", &accountToUpdate) != 1) {
+            printf("✖ Invalid input. Please enter a number.\n");
+            while (getchar() != '\n');
+            continue;
+        }
+
+        valid = 0;
+        for (int i = 0; i < count; i++) {
+            if (existingAccounts[i] == accountToUpdate) {
+                valid = 1;
+                break;
+            }
+        }
+
+        if (!valid) {
+            printf("✖ Invalid account number. Please try again.\n");
+        }
+
+    } while (!valid);
+
+    getchar(); // consume newline
+
+    // Step 3: Ask what to update
+    printf("What would you like to update?\n");
+    printf("1. Country\n");
+    printf("2. Phone number\n");
+    printf("Enter your choice: ");
+    scanf("%d", &choice);
+    getchar(); // consume newline
+
+    char newValue[100];
+    const char *updateSQL;
+
+    if (choice == 1) {
+        getValidCountry(newValue);
+        updateSQL = "UPDATE accounts SET country = ? WHERE user_id = ? AND account_id = ?";
+    } else if (choice == 2) {
+        getValidPhone(newValue);
+        updateSQL = "UPDATE accounts SET phone = ? WHERE user_id = ? AND account_id = ?";
+    } else {
+        printf("Invalid choice. Returning to main menu...\n");
+        sqlite3_close(db);  // Close db before returning!
+        return;
+    }
+
+    rc = sqlite3_prepare_v2(db, updateSQL, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare update statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, newValue, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, u.id);
+    sqlite3_bind_int(stmt, 3, accountToUpdate);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update account: %s\n", sqlite3_errmsg(db));
+    } else {
+        printf("✔ Account updated successfully!\n");
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);  // Close DB connection here
+
+    success(u);
+}
 
 void checkAllAccounts(struct User u)
 {
@@ -137,124 +255,6 @@ void checkAllAccounts(struct User u)
     success(u);
 }
 
-void updateAccount(struct User u) {
-    struct Record r;
-    char userName[50];
-    int accountToUpdate;
-    int found = 0;
-    int choice;
-    int existingAccounts[100];
-    int existingCount = 0;
-    int foundAny = 0;
-
-    FILE *pfRead = fopen(RECORDS, "r");
-    if (pfRead == NULL) {
-        printf("Error opening file for reading.\n");
-        return;
-    }
-
-    // First, list all accounts for the user
-    printf("======= Update Account =======\n");
-    printf("Existing account numbers for %s:\n", u.name);
-    while (getAccountFromFile(pfRead, userName, &r)) {
-        if (strcmp(userName, u.name) == 0) {
-            printf(" - %d\n", r.accountNbr);
-            if (existingCount < 100) {
-                existingAccounts[existingCount++] = r.accountNbr;
-            }
-            foundAny = 1;
-        }
-    }
-    if (!foundAny) {
-        printf(" (None)\n");
-        fclose(pfRead);
-        return;
-    }
-
-    // Validate account number exists
-    int valid = 0;
-    do {
-        printf("Enter the account number you want to update: ");
-        if (scanf("%d", &accountToUpdate) != 1) {
-            printf("✖ Invalid input. Please enter a number.\n");
-            while (getchar() != '\n'); // Clear input buffer
-            continue;
-        }
-
-        for (int i = 0; i < existingCount; i++) {
-            if (existingAccounts[i] == accountToUpdate) {
-                valid = 1;
-                break;
-            }
-        }
-
-        if (!valid) {
-            printf("✖ Invalid account number. Please try again.\n");
-        }
-
-    } while (!valid);
-
-    getchar(); // consume leftover newline
-
-    // Rewind file for second pass
-    rewind(pfRead);
-
-    // Open temporary file to write updated records
-    FILE *pfTemp = fopen("./data/temp.txt", "w");
-    if (pfTemp == NULL) {
-        printf("Error opening temporary file.\n");
-        fclose(pfRead);
-        return;
-    }
-
-    while (getAccountFromFile(pfRead, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToUpdate) {
-            found = 1;
-
-            printf("What would you like to update?\n");
-            printf("1. Country\n");
-            printf("2. Phone number\n");
-            printf("Enter your choice: ");
-            scanf("%d", &choice);
-            getch(); // consume newline
-
-            if (choice == 1) {
-                getValidCountry(r.country);
-            } else if (choice == 2) {
-                getValidPhone(r.phone);
-            } else {
-                printf("Invalid choice. Returning to main menu, press any key.\n");
-                getch(); // Consume leftover newline
-                //getch(); // Wait for user to press Enter
-                fclose(pfRead);
-                fclose(pfTemp);
-                remove("./data/temp.txt");
-                mainMenu(u);
-                return;
-            }
-
-            printf("✔ Account updated successfully!\n");
-        }
-
-        // Save either the updated or unchanged record
-        struct User tempUser = u;
-        strncpy(tempUser.name, userName, sizeof(tempUser.name));
-        saveAccountToFile(pfTemp, tempUser, r);
-    }
-
-    fclose(pfRead);
-    fclose(pfTemp);
-
-    if (!found) {
-        printf("✖ Account not found or doesn't belong to user.\n");
-        remove("./data/temp.txt");
-    } else {
-        remove(RECORDS);
-        rename("./data/temp.txt", RECORDS);
-    }
-
-    success(u);
-}
 
 void checkAccountDetails(struct User u) {
     struct Record r;
