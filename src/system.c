@@ -8,6 +8,8 @@
 #include <sqlite3.h>
 #include "terminal_utils.h"
 #include "file_utils.h"
+#include "ipc_utils.h"
+#include <pthread.h>
 
 
 const char *RECORDS = "./data/records.txt";
@@ -705,17 +707,17 @@ void removeAccount(struct User u) {
 }
 
 
-static int getUserIdByName(const char *username) {
-    char filename[100];
-    sprintf(filename, "./data/%s.txt", username); // Adjust path if needed
-    FILE *f = fopen(filename, "r");
-    int id = -1;
-    if (f) {
-        fscanf(f, "%d", &id); // Assuming user ID is stored as first line in the user file
-        fclose(f);
-    }
-    return id;
-}
+// static int getUserIdByName(const char *username) {
+//     char filename[100];
+//     sprintf(filename, "./data/%s.txt", username); // Adjust path if needed
+//     FILE *f = fopen(filename, "r");
+//     int id = -1;
+//     if (f) {
+//         fscanf(f, "%d", &id); // Assuming user ID is stored as first line in the user file
+//         fclose(f);
+//     }
+//     return id;
+// }
 
 int userExistsInDB(sqlite3 *db, const char *username) {
     sqlite3_stmt *stmt;
@@ -808,6 +810,7 @@ void transferOwnership(struct User u) {
     char newOwnerUsername[50];
     printf("Enter the username of the new owner: ");
     scanf("%49s", newOwnerUsername);
+    while (getchar() != '\n');
 
     // Check if new owner exists
     if (!userExistsInDB(db, newOwnerUsername)) {
@@ -893,6 +896,13 @@ void transferOwnership(struct User u) {
 
     sqlite3_finalize(stmt);
     sqlite3_close(db);
+
+    char message[256];
+    snprintf(message, sizeof(message),
+            "Ownership of account %d has been transferred to you by user '%s'.",
+            accountToTransfer, u.name);
+
+    notifyUser(newOwnerUsername, message);
 
     printf("✔ Account %d successfully transferred to %s.\n", accountToTransfer, newOwnerUsername);
     success(u);

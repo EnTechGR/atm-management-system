@@ -5,7 +5,7 @@ SRC = src/main.c src/system.c src/auth.c src/init_menu.c src/main_menu.c \
        src/get_valid_date.c src/get_valid_country.c src/get_valid_phone.c \
        src/get_valid_amount.c src/get_valid_account.c src/database.c \
        src/terminal_utils.c src/hashing_utils.c \
-	    src/file_utils.c src/ui_helper.c
+	    src/file_utils.c src/ui_helper.c src/ipc_utils.c
 
 OBJ = $(SRC:.c=.o)
 TARGET = atm
@@ -29,6 +29,9 @@ src/auth.o: src/auth.c src/auth.h src/header.h src/terminal_utils.h src/hashing_
 
 src/database.o: src/database.c src/database.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
+src/ipc_utils.o: src/ipc_utils.c src/ipc_utils.h
+	$(CC) $(CFLAGS) -c src/ipc_utils.c -o src/ipc_utils.o
 
 clean:
 	rm -f $(OBJ) $(TARGET)
