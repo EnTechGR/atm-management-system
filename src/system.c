@@ -595,43 +595,61 @@ void makeTransaction(struct User u) {
 }
 
 void removeAccount(struct User u) {
-    struct Record r;
-    char userName[50];
-    int accountToRemove;
-    int found = 0;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    // Open the file for reading
-    FILE *pfRead = fopen(RECORDS, "r");
-    if (pfRead == NULL) {
-        printf("Error opening file for reading.\n");
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return;
     }
 
     system("clear");
     printf("======= Remove Account =======\n");
 
-    // List all accounts for the user
-    printf("Existing account numbers for %s:\n", u.name);
+    // Fetch all user accounts
+    const char *select_sql = "SELECT account_id, balance, account_type FROM accounts WHERE user_id = ?";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, u.id);
+
     int existingAccounts[100];
     int existingCount = 0;
-    while (getAccountFromFile(pfRead, userName, &r)) {
-        if (strcmp(userName, u.name) == 0) {
-            printf(" - %d (Balance: $%.2f, Type: %s)\n", r.accountNbr, r.amount, r.accountType);
-            existingAccounts[existingCount++] = r.accountNbr;
-            found = 1;
+    double balances[100];
+    char accountTypes[100][20];
+
+    printf("Existing account numbers for %s:\n", u.name);
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int accId = sqlite3_column_int(stmt, 0);
+        double bal = sqlite3_column_double(stmt, 1);
+        const unsigned char *atype = sqlite3_column_text(stmt, 2);
+
+        printf(" - %d (Balance: $%.2f, Type: %s)\n", accId, bal, atype);
+
+        if (existingCount < 100) {
+            existingAccounts[existingCount] = accId;
+            balances[existingCount] = bal;
+            strncpy(accountTypes[existingCount], (const char *)atype, sizeof(accountTypes[existingCount]) - 1);
+            accountTypes[existingCount][sizeof(accountTypes[existingCount]) - 1] = '\0';
+            existingCount++;
         }
     }
+    sqlite3_finalize(stmt);
 
-    if (!found) {
+    if (existingCount == 0) {
         printf("No accounts found for user %s.\n", u.name);
-        fclose(pfRead);
+        sqlite3_close(db);
         success(u);
         return;
     }
 
-    fclose(pfRead);
-
-    // Ask user to choose account for removal
+    // Ask user to choose account to remove
+    int accountToRemove;
     int validAccount = 0;
     do {
         printf("\nEnter the account number you want to remove: ");
@@ -645,72 +663,47 @@ void removeAccount(struct User u) {
         for (int i = 0; i < existingCount; i++) {
             if (existingAccounts[i] == accountToRemove) {
                 validAccount = 1;
+                // Check balance > 0 for this account
+                if (balances[i] > 0.0) {
+                    printf("This account has a balance of $%.2f. You must withdraw the funds before deletion.\n", balances[i]);
+                    validAccount = 0;  // Can't remove this account yet
+                }
                 break;
             }
         }
 
         if (!validAccount) {
-            printf("Account not found. Please try again.\n");
+            printf("Account not found or cannot be removed. Please try again.\n");
         }
     } while (!validAccount);
 
-    // Open the original file and a temporary file for updating
-    FILE *pfReadAgain = fopen(RECORDS, "r");
-    FILE *pfTemp = fopen("./data/temp.txt", "w");
-
-    if (pfReadAgain == NULL || pfTemp == NULL) {
-        printf("Error opening files.\n");
-        if (pfReadAgain) fclose(pfReadAgain);
-        if (pfTemp) fclose(pfTemp);
+    // Delete the account from DB
+    const char *delete_sql = "DELETE FROM accounts WHERE user_id = ? AND account_id = ?";
+    rc = sqlite3_prepare_v2(db, delete_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare delete statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
         return;
     }
 
-    // Check if the account has a balance greater than 0
-    while (getAccountFromFile(pfReadAgain, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToRemove) {
-            if (r.amount > 0) {
-                printf("This account has a balance of $%.2f. You must withdraw the funds before deletion.\n", r.amount);
-                fclose(pfReadAgain);
-                fclose(pfTemp);
-                success(u);
-                return;
-            }
-        }
+    sqlite3_bind_int(stmt, 1, u.id);
+    sqlite3_bind_int(stmt, 2, accountToRemove);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to delete account: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return;
     }
 
-    // Rewind file to process and write to temp file
-    rewind(pfReadAgain);
-
-    // Process the file and write all records to temp file, excluding the account to remove
-    while (getAccountFromFile(pfReadAgain, userName, &r)) {
-        if (!(strcmp(userName, u.name) == 0 && r.accountNbr == accountToRemove)) {
-            // Use the userName and the user ID from the record itself
-            fprintf(pfTemp, "%d %d %s %d %d/%d/%d %s %s %.2lf %s\n\n",
-                    r.id,
-                    r.userId,
-                    userName,
-                    r.accountNbr,
-                    r.deposit.month,
-                    r.deposit.day,
-                    r.deposit.year,
-                    r.country,
-                    r.phone,
-                    r.amount,
-                    r.accountType);
-        }
-    }
-
-    fclose(pfReadAgain);
-    fclose(pfTemp);
-
-    // Remove the original file and rename the temporary file to replace it
-    remove(RECORDS);
-    rename("./data/temp.txt", RECORDS);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     printf("✔ Account number %d has been successfully removed.\n", accountToRemove);
-
     success(u);
 }
+
 
 static int getUserIdByName(const char *username) {
     char filename[100];
