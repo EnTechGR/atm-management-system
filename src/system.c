@@ -200,6 +200,7 @@ void updateAccount(struct User u) {
         updateSQL = "UPDATE accounts SET phone = ? WHERE user_id = ? AND account_id = ?";
     } else {
         printf("Invalid choice. Returning to main menu...\n");
+        getch();
         sqlite3_close(db);  // Close db before returning!
         return;
     }
