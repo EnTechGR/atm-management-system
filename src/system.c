@@ -717,134 +717,183 @@ static int getUserIdByName(const char *username) {
     return id;
 }
 
-int userExistsInRecords(const char *username) {
-    FILE *f = fopen(RECORDS, "r");
-    if (!f) return 0;
-
-    struct Record r;
-    char recordUsername[50];
-    int found = 0;
-
-    while (getAccountFromFile(f, recordUsername, &r)) {
-        if (strcmp(recordUsername, username) == 0) {
-            found = 1;
-            break;
-        }
+int userExistsInDB(sqlite3 *db, const char *username) {
+    sqlite3_stmt *stmt;
+    // Use COLLATE NOCASE for case-insensitive comparison
+    const char *sql = "SELECT 1 FROM users WHERE name = ? COLLATE NOCASE LIMIT 1;";
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "DB error: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
-    fclose(f);
-    return found;
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    int exists = (rc == SQLITE_ROW);
+
+    sqlite3_finalize(stmt);
+    return exists;
 }
 
+
 // Helper function to get all the account IDs of a specific user
-void getAccountIDsForUser(const char *username, int *accountIDs, int *count) {
-    FILE *pfRead = fopen(RECORDS, "r");
-    if (!pfRead) {
-        printf("Error opening records file.\n");
-        return;
+// Helper: get user ID by username
+int getUserIdByNameDB(sqlite3 *db, const char *username) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id FROM users WHERE name = ? LIMIT 1;";
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) return -1;
+
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    int userId = -1;
+    if (rc == SQLITE_ROW) {
+        userId = sqlite3_column_int(stmt, 0);
     }
 
-    struct Record r;
-    char userName[50];
-    *count = 0;
+    sqlite3_finalize(stmt);
+    return userId;
+}
 
-    while (getAccountFromFile(pfRead, userName, &r)) {
-        if (strcmp(userName, username) == 0) {
-            accountIDs[*count] = r.accountNbr;  // Store the account number
+// Helper: get all account IDs for a user by username
+void getAccountIDsForUserDB(sqlite3 *db, const char *username, int *accountIDs, int *count) {
+    *count = 0;
+    int userId = getUserIdByNameDB(db, username);
+    if (userId < 0) return;
+
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT account_id FROM accounts WHERE user_id = ?;";
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) return;
+
+    sqlite3_bind_int(stmt, 1, userId);
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (*count < 100) {
+            accountIDs[*count] = sqlite3_column_int(stmt, 0);
             (*count)++;
         }
     }
 
-    fclose(pfRead);
+    sqlite3_finalize(stmt);
 }
 
+
 void transferOwnership(struct User u) {
-    struct Record r;
-    char userName[50];
-    int accountToTransfer;
-    char newOwnerUsername[50];
-    int found = 0;
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return;
+    }
 
     system("clear");
     printf("======= Transfer Account Ownership =======\n");
 
+    int accountToTransfer;
     printf("Enter the account number you want to transfer: ");
     if (scanf("%d", &accountToTransfer) != 1) {
         printf("✖ Invalid input.\n");
         while (getchar() != '\n');
         success(u);
+        sqlite3_close(db);
         return;
     }
 
-    // Prompt for the new owner's username
+    char newOwnerUsername[50];
     printf("Enter the username of the new owner: ");
-    scanf("%s", newOwnerUsername);
+    scanf("%49s", newOwnerUsername);
 
     // Check if new owner exists
-    if (!userExistsInRecords(newOwnerUsername)) {
+    if (!userExistsInDB(db, newOwnerUsername)) {
         printf("✖ User '%s' does not exist.\n", newOwnerUsername);
         success(u);
+        sqlite3_close(db);
         return;
     }
 
-    // Get the list of account IDs for the new owner
+    // Get new owner's account IDs
     int newOwnerAccountIDs[100];
     int newOwnerAccountCount = 0;
-    getAccountIDsForUser(newOwnerUsername, newOwnerAccountIDs, &newOwnerAccountCount);
+    getAccountIDsForUserDB(db, newOwnerUsername, newOwnerAccountIDs, &newOwnerAccountCount);
 
-    // Check if the account number exists in the new owner's account list
-    int accountExists = 0;
+    // Check if new owner already has the account ID
     for (int i = 0; i < newOwnerAccountCount; i++) {
         if (newOwnerAccountIDs[i] == accountToTransfer) {
-            accountExists = 1;
-            break;
+            printf("✖ User '%s' already has an account with this ID. Please choose a different account ID.\n", newOwnerUsername);
+            success(u);
+            sqlite3_close(db);
+            return;
         }
     }
 
-    if (accountExists) {
-        printf("✖ User '%s' already has an account with this ID. Please choose a different account ID.\n", newOwnerUsername);
+    // Check if the account belongs to the current user
+    const char *check_account_sql = "SELECT user_id FROM accounts WHERE account_id = ?;";
+    rc = sqlite3_prepare_v2(db, check_account_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
         success(u);
+        sqlite3_close(db);
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, accountToTransfer);
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        printf("✖ Account not found.\n");
+        sqlite3_finalize(stmt);
+        success(u);
+        sqlite3_close(db);
+        return;
+    }
+    int currentOwnerId = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+
+    if (currentOwnerId != u.id) {
+        printf("✖ You do not own this account.\n");
+        success(u);
+        sqlite3_close(db);
         return;
     }
 
-    // Read records and write to temp, updating ownership
-    FILE *pfRead = fopen(RECORDS, "r");
-    FILE *pfTemp = fopen("./data/temp.txt", "w");
-
-    if (pfRead == NULL || pfTemp == NULL) {
-        printf("✖ Error accessing account records.\n");
-        if (pfRead) fclose(pfRead);
-        if (pfTemp) fclose(pfTemp);
+    // Get new owner ID
+    int newOwnerId = getUserIdByNameDB(db, newOwnerUsername);
+    if (newOwnerId < 0) {
+        printf("✖ Could not find new owner's ID.\n");
         success(u);
+        sqlite3_close(db);
         return;
     }
 
-    while (getAccountFromFile(pfRead, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountToTransfer) {
-            found = 1;
-
-            // Update ownership
-            strcpy(userName, newOwnerUsername);
-            r.userId = getUserIdByName(newOwnerUsername); // Update the user ID for the new owner
-        }
-
-        // Save record (updated or not)
-        struct User tempUser = u;
-        strncpy(tempUser.name, userName, sizeof(tempUser.name));
-        saveAccountToFile(pfTemp, tempUser, r);
+    // Update ownership in DB
+    const char *update_sql = "UPDATE accounts SET user_id = ? WHERE account_id = ?;";
+    rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare update statement: %s\n", sqlite3_errmsg(db));
+        success(u);
+        sqlite3_close(db);
+        return;
     }
 
-    fclose(pfRead);
-    fclose(pfTemp);
+    sqlite3_bind_int(stmt, 1, newOwnerId);
+    sqlite3_bind_int(stmt, 2, accountToTransfer);
 
-    if (!found) {
-        printf("✖ Account not found or doesn't belong to you.\n");
-        remove("./data/temp.txt");
-    } else {
-        remove(RECORDS);
-        rename("./data/temp.txt", RECORDS);
-        printf("✔ Account %d successfully transferred to %s.\n", accountToTransfer, newOwnerUsername);
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update account ownership: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        success(u);
+        sqlite3_close(db);
+        return;
     }
 
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    printf("✔ Account %d successfully transferred to %s.\n", accountToTransfer, newOwnerUsername);
     success(u);
 }
