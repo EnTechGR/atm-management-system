@@ -19,36 +19,41 @@
 //     return ch;
 // }
 
+#include <sqlite3.h>
+
 void getUserById(char username[50], struct User *u) {
-    FILE *fp;
-    int id;
-    char name[50];
-    char password[128];
-    
-    // Initialize with default values
-    u->id = -1;
-    strcpy(u->name, username);
-    
-    if ((fp = fopen("./data/users.txt", "r")) == NULL) {
-        printf("Error! opening file");
-        exit(1);
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+
+    u->id = -1; // Default to -1 (not found)
+    strncpy(u->name, username, sizeof(u->name));
+    u->name[sizeof(u->name) - 1] = '\0';
+
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
+        return;
     }
-    
-    // Read each line of the users file
-    while (fscanf(fp, "%d %s %s", &id, name, password) == 3) {
-        if (strcmp(name, username) == 0) {
-            // Found the user, populate the struct
-            u->id = id;
-            strcpy(u->name, name);
-            strcpy(u->salt, ""); // We don't need to store the salt/hash here
-            strcpy(u->password, ""); // Don't store password in memory
-            fclose(fp);
-            return;
-        }
+
+    const char *sql = "SELECT id FROM users WHERE LOWER(name) = LOWER(?)";
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
     }
-    
-    fclose(fp);
+
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        u->id = sqlite3_column_int(stmt, 0);
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 }
+
 
 void initMenu(struct User *u) {
     char input[10];
