@@ -226,36 +226,6 @@ void updateAccount(struct User u) {
     success(u);
 }
 
-void checkAllAccounts(struct User u)
-{
-    char userName[100];
-    struct Record r;
-
-    FILE *pf = fopen(RECORDS, "r");
-
-    system("clear");
-    printf("\t\t====== All accounts from user, %s =====\n\n", u.name);
-    while (getAccountFromFile(pf, userName, &r))
-    {
-        if (strcmp(userName, u.name) == 0)
-        {
-            printf("_____________________\n");
-            printf("\nAccount number:%d\nDeposit Date:%d/%d/%d \ncountry:%s \nPhone number:%s \nAmount deposited: $%.2f \nType Of Account:%s\n",
-                   r.accountNbr,
-                   r.deposit.day,
-                   r.deposit.month,
-                   r.deposit.year,
-                   r.country,
-                   r.phone,
-                   r.amount,
-                   r.accountType);
-        }
-    }
-    fclose(pf);
-    success(u);
-}
-
-
 void checkAccountDetails(struct User u) {
     sqlite3 *db;
     sqlite3_stmt *stmt;
@@ -378,7 +348,71 @@ void checkAccountDetails(struct User u) {
     success(u);
 }
 
+void checkAllAccounts(struct User u)
+{
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return;
+    }
+
+    system("clear");
+    printf("\t\t====== All accounts from user, %s =====\n\n", u.name);
+
+    const char *sql = 
+        "SELECT account_id, creation_date, country, phone, balance, account_type "
+        "FROM accounts WHERE user_id = ?";
+
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_int(stmt, 1, u.id);
+
+    int foundAny = 0;
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        foundAny = 1;
+
+        int accountNbr = sqlite3_column_int(stmt, 0);
+        const unsigned char *creationDate = sqlite3_column_text(stmt, 1);
+        const unsigned char *country = sqlite3_column_text(stmt, 2);
+        const unsigned char *phone = sqlite3_column_text(stmt, 3);
+        double amount = sqlite3_column_double(stmt, 4);
+        const unsigned char *accountType = sqlite3_column_text(stmt, 5);
+
+        // Parse creation_date (format YYYY-MM-DD)
+        int year = 0, month = 0, day = 0;
+        sscanf((const char *)creationDate, "%4d-%2d-%2d", &year, &month, &day);
+
+        printf("_____________________\n");
+        printf("\nAccount number: %d\nDeposit Date: %d/%d/%d \nCountry: %s \nPhone number: %s \nAmount deposited: $%.2f \nType Of Account: %s\n",
+            accountNbr,
+            day,
+            month,
+            year,
+            country,
+            phone,
+            amount,
+            accountType);
+    }
+
+    if (!foundAny) {
+        printf("No accounts found for user %s.\n", u.name);
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    success(u);
+}
 
 void makeTransaction(struct User u) {
     struct Record r;
