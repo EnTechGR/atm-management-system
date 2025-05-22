@@ -257,87 +257,119 @@ void checkAllAccounts(struct User u)
 
 
 void checkAccountDetails(struct User u) {
-    struct Record r;
-    char userName[50];
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
     int accountNbr;
-    int found = 0, hasAccounts = 0;
-    //int existingAccounts[100];
-    //int existingCount = 0;
+    int found = 0;
 
-    FILE *pf = fopen(RECORDS, "r");
-    if (pf == NULL) {
-        printf("Error opening file.\n");
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return;
     }
 
     system("clear");
     printf("======= Your Available Accounts =======\n");
 
-    // Just a listing of user's account numbers
-    while (getAccountFromFile(pf, userName, &r)) {
-        if (strcmp(userName, u.name) == 0) {
-            printf(" - %d\n", r.accountNbr);
-            // if (existingCount < 100) {
-            //     existingAccounts[existingCount++] = r.accountNbr;
-            // }
-            hasAccounts = 1;
-        }
+    // List all accounts belonging to the user
+    const char *listAccountsSQL = "SELECT account_id FROM accounts WHERE user_id = ?";
+    rc = sqlite3_prepare_v2(db, listAccountsSQL, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare list accounts statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
     }
+
+    sqlite3_bind_int(stmt, 1, u.id);
+
+    int hasAccounts = 0;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int accId = sqlite3_column_int(stmt, 0);
+        printf(" - %d\n", accId);
+        hasAccounts = 1;
+    }
+    sqlite3_finalize(stmt);
 
     if (!hasAccounts) {
         printf(" (None)\n");
-        fclose(pf);
+        sqlite3_close(db);
         success(u);
         return;
     }
 
-    // Rewind the file to search for the selected account
-    rewind(pf);
-
+    // Ask user for account number to display details
     printf("\nEnter the account number you want to check in detail: ");
     if (scanf("%d", &accountNbr) != 1) {
         printf("Invalid input!\n");
-        fclose(pf);
         while (getchar() != '\n'); // clear input buffer
+        sqlite3_close(db);
+        return;
+    }
+    getchar(); // consume newline
+
+    // Query account details for that account number and user
+    const char *detailsSQL =
+        "SELECT account_id, creation_date, country, phone, balance, account_type "
+        "FROM accounts WHERE user_id = ? AND account_id = ?";
+
+    rc = sqlite3_prepare_v2(db, detailsSQL, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare details statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
         return;
     }
 
-    while (getAccountFromFile(pf, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNbr) {
-            found = 1;
-            printf("\n✔ Account found!\n");
-            printf("\nAccount number: %d", r.accountNbr);
-            printf("\nDeposit Date: %d/%d/%d", r.deposit.day, r.deposit.month, r.deposit.year);
-            printf("\nCountry: %s", r.country);
-            printf("\nPhone number: %s", r.phone);
-            printf("\nAmount deposited: $%.2f", r.amount);
-            printf("\nType of Account: %s\n", r.accountType);
+    sqlite3_bind_int(stmt, 1, u.id);
+    sqlite3_bind_int(stmt, 2, accountNbr);
 
-            double interestRate = 0.0;
-            if (strcmp(r.accountType, "savings") == 0) {
-                interestRate = 0.07;
-            } else if (strcmp(r.accountType, "fixed01") == 0) {
-                interestRate = 0.04;
-            } else if (strcmp(r.accountType, "fixed02") == 0) {
-                interestRate = 0.05;
-            } else if (strcmp(r.accountType, "fixed03") == 0) {
-                interestRate = 0.08;
-            }
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        found = 1;
 
-            if (interestRate > 0.0) {
-                double interest = r.amount * interestRate / 12; // Monthly interest
-                printf("\nYou will get $%.2f as interest on day %d of every month.\n", interest, r.deposit.day);
-            } else if (strcmp(r.accountType, "current") == 0) {
-                printf("\nYou will not get interests because the account is of type current.\n");
-            } else {
-                printf("\nUnknown account type. Cannot calculate interest.\n");
-            }
+        int accId = sqlite3_column_int(stmt, 0);
+        const unsigned char *creationDate = sqlite3_column_text(stmt, 1);
+        const unsigned char *country = sqlite3_column_text(stmt, 2);
+        const unsigned char *phone = sqlite3_column_text(stmt, 3);
+        double balance = sqlite3_column_double(stmt, 4);
+        const unsigned char *accountType = sqlite3_column_text(stmt, 5);
 
-            break;
+        // Parse creation_date string into day, month, year
+        int year, month, day;
+        if (sscanf((const char *)creationDate, "%4d-%2d-%2d", &year, &month, &day) != 3) {
+            year = month = day = 0;  // fallback if parsing fails
+        }
+
+        printf("\n✔ Account found!\n");
+        printf("\nAccount number: %d", accId);
+        printf("\nDeposit Date: %d/%d/%d", day, month, year);
+        printf("\nCountry: %s", country);
+        printf("\nPhone number: %s", phone);
+        printf("\nAmount deposited: $%.2f", balance);
+        printf("\nType of Account: %s\n", accountType);
+
+        double interestRate = 0.0;
+        if (strcmp((const char *)accountType, "savings") == 0) {
+            interestRate = 0.07;
+        } else if (strcmp((const char *)accountType, "fixed01") == 0) {
+            interestRate = 0.04;
+        } else if (strcmp((const char *)accountType, "fixed02") == 0) {
+            interestRate = 0.05;
+        } else if (strcmp((const char *)accountType, "fixed03") == 0) {
+            interestRate = 0.08;
+        }
+
+        if (interestRate > 0.0) {
+            double interest = balance * interestRate / 12; // Monthly interest
+            printf("\nYou will get $%.2f as interest on day %d of every month.\n", interest, day);
+        } else if (strcmp((const char *)accountType, "current") == 0) {
+            printf("\nYou will not get interests because the account is of type current.\n");
+        } else {
+            printf("\nUnknown account type. Cannot calculate interest.\n");
         }
     }
-
-    fclose(pf);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     if (!found) {
         printf("\n✖ Account not found or does not belong to you.\n");
@@ -345,6 +377,7 @@ void checkAccountDetails(struct User u) {
 
     success(u);
 }
+
 
 
 void makeTransaction(struct User u) {
