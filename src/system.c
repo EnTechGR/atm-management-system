@@ -415,158 +415,181 @@ void checkAllAccounts(struct User u)
 }
 
 void makeTransaction(struct User u) {
-    struct Record r;
-    char userName[50];
-    int accountNbr, found = 0, hasAccounts = 0;
-    double amount;
-    int transactionType; // 1 for deposit, 2 for withdrawal
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
 
-    FILE *pf = fopen(RECORDS, "r");
-    if (pf == NULL) {
-        printf("Error opening records file.\n");
+    rc = sqlite3_open("./data/atm.db", &db);
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return;
     }
 
     system("clear");
     printf("======= Available Accounts for %s =======\n", u.name);
 
-    // List user accounts
-    while (getAccountFromFile(pf, userName, &r)) {
-        if (strcmp(userName, u.name) == 0) {
-            printf(" - %d (Type: %s, Balance: $%.2f)\n", r.accountNbr, r.accountType, r.amount);
-            hasAccounts = 1;
-        }
+    // Query accounts of user
+    const char *select_sql = "SELECT account_id, account_type, balance FROM accounts WHERE user_id = ?";
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
     }
 
-    if (!hasAccounts) {
+    sqlite3_bind_int(stmt, 1, u.id);
+
+    int foundAny = 0;
+    int accounts[100];
+    char accountTypes[100][20];
+    double balances[100];
+    int count = 0;
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        foundAny = 1;
+        accounts[count] = sqlite3_column_int(stmt, 0);
+        const unsigned char *atype = sqlite3_column_text(stmt, 1);
+        strncpy(accountTypes[count], (const char *)atype, sizeof(accountTypes[count]) - 1);
+        accountTypes[count][sizeof(accountTypes[count]) - 1] = '\0';
+        balances[count] = sqlite3_column_double(stmt, 2);
+
+        printf(" - %d (Type: %s, Balance: $%.2f)\n", accounts[count], accountTypes[count], balances[count]);
+        count++;
+        if (count >= 100) break;
+    }
+    sqlite3_finalize(stmt);
+
+    if (!foundAny) {
         printf("No accounts found.\n");
-        fclose(pf);
+        sqlite3_close(db);
         success(u);
         return;
     }
 
-    // Get account number for transaction
+    int accountNbr;
     printf("\nEnter the account number you want to use for the transaction: ");
-    scanf("%d", &accountNbr);
-    rewind(pf);
-
-    // Open temp file to rewrite updated records
-    FILE *pfTemp = fopen("./data/temp.txt", "w");
-    if (pfTemp == NULL) {
-        printf("Error creating temporary file.\n");
-        fclose(pf);
+    if (scanf("%d", &accountNbr) != 1) {
+        printf("Invalid input.\n");
+        while (getchar() != '\n'); // clear input buffer
+        sqlite3_close(db);
+        success(u);
         return;
     }
 
-    // Process each record
-    while (getAccountFromFile(pf, userName, &r)) {
-        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNbr) {
-            found = 1;
+    // Find selected account index and check restrictions
+    int index = -1;
+    for (int i = 0; i < count; i++) {
+        if (accounts[i] == accountNbr) {
+            index = i;
+            break;
+        }
+    }
 
-            // Check account type restrictions
-            if (strcmp(r.accountType, "fixed01") == 0 ||
-                strcmp(r.accountType, "fixed02") == 0 ||
-                strcmp(r.accountType, "fixed03") == 0) {
-                printf("✖ Transactions are not allowed on %s accounts.\n", r.accountType);
-                fclose(pf);
-                fclose(pfTemp);
-                remove("./data/temp.txt");
-                success(u);
-                return;
-            }
+    if (index == -1) {
+        printf("✖ Account not found or does not belong to you.\n");
+        sqlite3_close(db);
+        success(u);
+        return;
+    }
 
-            // Get transaction type
-            printf("\nSelect transaction type:\n1. Deposit\n2. Withdrawal\nEnter choice: ");
-            scanf("%d", &transactionType);
-            if (transactionType != 1 && transactionType != 2) {
-                printf("Invalid choice.\n");
-                fclose(pf);
-                fclose(pfTemp);
-                remove("./data/temp.txt");
-                success(u);
-                return;
-            }
+    if (strcmp(accountTypes[index], "fixed01") == 0 ||
+        strcmp(accountTypes[index], "fixed02") == 0 ||
+        strcmp(accountTypes[index], "fixed03") == 0) {
+        printf("✖ Transactions are not allowed on %s accounts.\n", accountTypes[index]);
+        sqlite3_close(db);
+        success(u);
+        return;
+    }
 
-            char amountStr[100];
-            int validAmount = 0;
+    int transactionType;
+    printf("\nSelect transaction type:\n1. Deposit\n2. Withdrawal\nEnter choice: ");
+    if (scanf("%d", &transactionType) != 1 || (transactionType != 1 && transactionType != 2)) {
+        printf("Invalid choice.\n");
+        while (getchar() != '\n'); // clear input buffer
+        sqlite3_close(db);
+        success(u);
+        return;
+    }
 
-            while (!validAmount) {
-                printf("Enter the amount (max 2 decimal places, use '.' not ','): ");
-                scanf("%s", amountStr);
+    char amountStr[100];
+    double amount = 0;
+    int validAmount = 0;
 
-                // Check for invalid comma
-                if (strchr(amountStr, ',') != NULL) {
-                    printf("✖ Use '.' instead of ',' for decimal point.\n");
-                    continue;
-                }
+    while (!validAmount) {
+        printf("Enter the amount (max 2 decimal places, use '.' not ','): ");
+        scanf("%s", amountStr);
 
-                // Validate numeric format with at most 2 decimal places
-                char *dot = strchr(amountStr, '.');
+        if (strchr(amountStr, ',') != NULL) {
+            printf("✖ Use '.' instead of ',' for decimal point.\n");
+            continue;
+        }
 
-                if (dot != NULL) {
-                    int decimalPlaces = strlen(dot + 1);
-                    if (decimalPlaces > 2) {
-                        printf("✖ Too many decimal places. Please enter up to 2 decimals only.\n");
-                        continue;
-                    }
-                }
-
-                // Check that the string is a valid number
-                int isValidFormat = 1;
-                for (int i = 0; amountStr[i]; i++) {
-                    if (!isdigit(amountStr[i]) && amountStr[i] != '.') {
-                        isValidFormat = 0;
-                        break;
-                    }
-                }
-
-                if (!isValidFormat) {
-                    printf("✖ Invalid characters in amount. Use only digits and '.'\n");
-                    continue;
-                }
-
-                amount = atof(amountStr);
-                if (amount <= 0) {
-                    printf("✖ Amount must be a positive number.\n");
-                    continue;
-                }
-
-                validAmount = 1;
-            }
-
-            if (transactionType == 1) {
-                r.amount += amount;
-                printf("✔ $%.2f deposited successfully.\n", amount);
-            } else {
-                if (amount > r.amount) {
-                    printf("✖ Insufficient funds.\n");
-                    fclose(pf);
-                    fclose(pfTemp);
-                    remove("./data/temp.txt");
-                    success(u);
-                    return;
-                }
-                r.amount -= amount;
-                printf("✔ $%.2f withdrawn successfully.\n", amount);
+        char *dot = strchr(amountStr, '.');
+        if (dot != NULL) {
+            int decimalPlaces = strlen(dot + 1);
+            if (decimalPlaces > 2) {
+                printf("✖ Too many decimal places. Please enter up to 2 decimals only.\n");
+                continue;
             }
         }
 
-        // Write updated or unchanged record
-        struct User tempUser = u;
-        strncpy(tempUser.name, userName, sizeof(tempUser.name));
-        saveAccountToFile(pfTemp, tempUser, r);
+        int isValidFormat = 1;
+        for (int i = 0; amountStr[i]; i++) {
+            if (!isdigit(amountStr[i]) && amountStr[i] != '.') {
+                isValidFormat = 0;
+                break;
+            }
+        }
+        if (!isValidFormat) {
+            printf("✖ Invalid characters in amount. Use only digits and '.'\n");
+            continue;
+        }
+
+        amount = atof(amountStr);
+        if (amount <= 0) {
+            printf("✖ Amount must be a positive number.\n");
+            continue;
+        }
+
+        validAmount = 1;
     }
 
-    fclose(pf);
-    fclose(pfTemp);
+    if (transactionType == 2 && amount > balances[index]) {
+        printf("✖ Insufficient funds.\n");
+        sqlite3_close(db);
+        success(u);
+        return;
+    }
 
-    if (!found) {
-        printf("✖ Account not found or doesn't belong to you.\n");
-        remove("./data/temp.txt");
+    // Calculate new balance
+    double newBalance = balances[index] + (transactionType == 1 ? amount : -amount);
+
+    // Update DB
+    const char *update_sql = "UPDATE accounts SET balance = ? WHERE user_id = ? AND account_id = ?";
+    rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare update statement: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return;
+    }
+
+    sqlite3_bind_double(stmt, 1, newBalance);
+    sqlite3_bind_int(stmt, 2, u.id);
+    sqlite3_bind_int(stmt, 3, accountNbr);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update balance: %s\n", sqlite3_errmsg(db));
     } else {
-        remove(RECORDS);
-        rename("./data/temp.txt", RECORDS);
+        if (transactionType == 1) {
+            printf("✔ $%.2f deposited successfully.\n", amount);
+        } else {
+            printf("✔ $%.2f withdrawn successfully.\n", amount);
+        }
     }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 
     success(u);
 }
