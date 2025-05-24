@@ -151,9 +151,14 @@ void updateAccount(struct User u) {
     sqlite3_finalize(stmt);
 
     if (count == 0) {
-        printf(" (None)\n");
-        sqlite3_close(db);  // Close db before returning!
-        return;
+    printf(" (None)\n");
+    sqlite3_close(db);  // Close db before returning!
+    
+    printf("\nPress Enter to return to the main menu...");
+    getchar();  // Wait for Enter key press
+    
+    mainMenu(u);  // Go back to main menu
+    return;
     }
 
     // Step 2: Prompt for account number
@@ -161,7 +166,7 @@ void updateAccount(struct User u) {
         printf("Enter the account number you want to update: ");
         if (scanf("%d", &accountToUpdate) != 1) {
             printf("✖ Invalid input. Please enter a number.\n");
-            while (getchar() != '\n');
+            getch();
             continue;
         }
 
@@ -201,6 +206,7 @@ void updateAccount(struct User u) {
     } else {
         printf("Invalid choice. Returning to main menu...\n");
         getch();
+        mainMenu(u);
         sqlite3_close(db);  // Close db before returning!
         return;
     }
