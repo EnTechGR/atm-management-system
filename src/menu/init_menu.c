@@ -50,17 +50,19 @@ void initMenu(struct User *u) {
     
     while (1) {
         system("clear");
+        
         printf("\n\n");
-        printf("\t+--------------------------------------------------+\n");
-        printf("\t|              BANK MANAGEMENT SYSTEM              |\n");
-        printf("\t+--------------------------------------------------+\n");
-        printf("\t|                                                  |\n");
-        printf("\t|  1. Login                                        |\n");
-        printf("\t|  2. Register                                     |\n");
-        printf("\t|  3. Exit                                         |\n");
-        printf("\t|                                                  |\n");
-        printf("\t+--------------------------------------------------+\n");
-        printf("\n\tEnter your choice: ");
+        printf("\t╔════════════════════════════════════════════════════════════╗\n");
+        printf("\t║                    WELCOME TO BANK SYSTEM                  ║\n");
+        printf("\t╠════════════════════════════════════════════════════════════╣\n");
+        printf("\t║                                                            ║\n");
+        printf("\t║   [1] ▸ Login                                              ║\n");
+        printf("\t║   [2] ▸ Register                                           ║\n");
+        printf("\t║   [3] ▸ Exit                                               ║\n");
+        printf("\t║                                                            ║\n");
+        printf("\t╚════════════════════════════════════════════════════════════╝\n");
+        printf("\n\tPlease select an option (1-3): ");
+
         fgets(input, sizeof(input), stdin);
         input[strcspn(input, "\n")] = 0;  // Remove newline
 
