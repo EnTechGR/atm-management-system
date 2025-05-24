@@ -18,6 +18,7 @@ int loginMenu(char a[50], char pass[50]) {
     struct termios oflags, nflags;
     struct User user;
     const char *stored_password;
+    int i;
 
     system("clear");
     printf("\n\n");
@@ -31,6 +32,16 @@ int loginMenu(char a[50], char pass[50]) {
     a[strcspn(a, "\n")] = 0;
     printf("\t|                                                  |\n");
 
+    // Validate username: letters only
+    for (i = 0; a[i] != '\0'; i++) {
+        if (!isalpha(a[i])) {
+            printf("\n\t[!] Invalid username. Only letters a-z and A-Z are allowed.\n");
+            printf("\n\tPress any key to continue...");
+            getch();
+            return 0;
+        }
+    }
+
     // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
     nflags = oflags;
@@ -42,7 +53,7 @@ int loginMenu(char a[50], char pass[50]) {
     }
 
     // Read password
-     printf("\t|  Password: ");
+    printf("\t|  Password: ");
     fgets(pass, 50, stdin);
     pass[strcspn(pass, "\n")] = 0;
     printf("\t|                                                  |\n");
@@ -52,7 +63,17 @@ int loginMenu(char a[50], char pass[50]) {
         perror("tcsetattr");
         exit(1);
     }
-     printf("\t+--------------------------------------------------+\n");
+
+    printf("\t+--------------------------------------------------+\n");
+
+    // Validate password length
+    if (strlen(pass) < 8 || strlen(pass) > 12) {
+        printf("\n\t[!] Password must be between 8 and 12 characters.\n");
+        printf("\n\tPress any key to continue...");
+        getch();
+        return 0;
+    }
+
     // Fill user struct
     strncpy(user.name, a, sizeof(user.name) - 1);
     user.name[sizeof(user.name) - 1] = '\0';
@@ -228,7 +249,7 @@ void registerMenu(char a[50], char pass[50]) {
     if (strcmp(pass, confirm_pass) != 0) {
         printf("\n\t[!] Passwords do not match. Registration aborted.\n");
         printf("\n\tPress any key to continue...");
-        getch();
+        
         return;
     }
 
