@@ -1,5 +1,5 @@
 #include <time.h>
-#include "header.h"
+#include "../header.h"
 
 // Get today's date and validate user input for date
 void getValidDate(struct Date *date) {

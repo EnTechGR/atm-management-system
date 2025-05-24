@@ -1,4 +1,4 @@
-#include "header.h"
+#include "../header.h"
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,9 +6,9 @@
 #include <termios.h> // For terminal settings
 #include <ctype.h>
 #include <sqlite3.h>
-#include "terminal_utils.h"
-#include "file_utils.h"
-#include "ipc_utils.h"
+#include "../utils/terminal_utils.h"
+#include "../utils/file_utils.h"
+#include "../utils/ipc_utils.h"
 #include <pthread.h>
 
 

@@ -1,5 +1,5 @@
 #include <ctype.h>
-#include "header.h"
+#include "../header.h"
 
 // Sanitize and validate phone number input
 void getValidPhone(char phone[11]) {

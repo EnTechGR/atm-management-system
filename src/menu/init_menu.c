@@ -1,11 +1,11 @@
-#include "header.h"
+#include "../header.h"
 #include <stdio.h> // Include for standard input/output functions
 #include <stdlib.h> // Include for exit()
 #include <string.h> // Include for string manipulation (optional, but good practice)
 #include <ctype.h>  // Include for character type checking (isdigit)
 #include <termios.h>
 #include <unistd.h>
-#include "terminal_utils.h"
+#include "../utils/terminal_utils.h"
 
 // static int getch(void) {
 //     struct termios oldt, newt;

@@ -1,6 +1,6 @@
 #include "header.h"
-#include "database.h"
-#include "ipc_utils.h"
+#include "database/database.h"
+#include "utils/ipc_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

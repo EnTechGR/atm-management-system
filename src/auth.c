@@ -10,8 +10,8 @@
 #include <unistd.h> 
 #include <sqlite3.h>
 #include "header.h"
-#include "terminal_utils.h"
-#include "hashing_utils.h"
+#include "utils/terminal_utils.h"
+#include "utils/hashing_utils.h"
 
 
 int loginMenu(char a[50], char pass[50]) {

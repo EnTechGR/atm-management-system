@@ -1,4 +1,4 @@
-#include "header.h"
+#include "../header.h"
 
 // Sanitize and validate deposit amount input
 void getValidAmount(double *amount) {

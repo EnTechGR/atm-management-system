@@ -1,5 +1,5 @@
 #include <ctype.h>
-#include "header.h"
+#include "../header.h"
 
 int accountNumberInList(int *list, int size, int number) {
     for (int i = 0; i < size; i++) {

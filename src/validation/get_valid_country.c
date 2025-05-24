@@ -1,5 +1,5 @@
 #include <ctype.h>
-#include "header.h"
+#include "../header.h"
 
 void toLowerCase(char *str) {
     for (int i = 0; str[i]; i++) {
