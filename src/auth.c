@@ -81,7 +81,7 @@ int loginMenu(char a[50], char pass[50]) {
 }
 
 
-const char *getPassword(struct User u) {
+    const char *getPassword(struct User u) {
     static char stored_password[128];
     sqlite3 *db;
     sqlite3_stmt *stmt;
@@ -173,8 +173,8 @@ void registerMenu(char a[50], char pass[50]) {
 
     // Check for invalid characters in username
     for (i = 0; a[i] != '\0'; i++) {
-        if (!isalnum(a[i])) {
-            printf("\n\t[!] Invalid username. Only a-z, A-Z, 0-9 are allowed.\n");
+        if (!isalpha(a[i])) {
+            printf("\n\t[!] Invalid username. Only a-z, A-Z are allowed.\n");
             printf("\n\tPress any key to continue...");
             getch();
             return;
@@ -228,14 +228,33 @@ void registerMenu(char a[50], char pass[50]) {
     if (strcmp(pass, confirm_pass) != 0) {
         printf("\n\t[!] Passwords do not match. Registration aborted.\n");
         printf("\n\tPress any key to continue...");
+        getch();
         return;
     }
 
     if (strchr(pass, ' ') != NULL) {
+        
         printf("\n\t[!] Password cannot contain spaces.\n");
         printf("\n\tPress any key to continue...");
         getch();
         return;
+    }
+
+    if (strlen(pass) < 8 || strlen(pass) > 12) {
+        printf("\n\t[!] Password must be between 8 and 12 characters.\n");
+        printf("\n\tPress any key to continue...");
+        getch();
+        return;
+    }
+
+    // Check that password contains only alphanumeric characters
+    for (i = 0; pass[i] != '\0'; i++) {
+        if (!isalnum(pass[i])) {
+            printf("\n\t[!] Password can only contain letters and numbers (no special characters).\n");
+            printf("\n\tPress any key to continue...");
+            getch();
+            return;
+        }
     }
 
     // Generate a random salt
