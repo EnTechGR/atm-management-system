@@ -20,12 +20,16 @@ int loginMenu(char a[50], char pass[50]) {
     const char *stored_password;
 
     system("clear");
-    printf("\n\n\n\t\t\t\t  Bank Management System\n\t\t\t\t\t User Login:");
+    printf("\n\n");
+    printf("\t+--------------------------------------------------+\n");
+    printf("\t|            BANK MANAGEMENT SYSTEM LOGIN          |\n");
+    printf("\t+--------------------------------------------------+\n");
 
-    // Read username
-    printf("\n\nEnter username: ");
+    // Username input
+    printf("\t|  Username: ");
     fgets(a, 50, stdin);
     a[strcspn(a, "\n")] = 0;
+    printf("\t|                                                  |\n");
 
     // Disable echo for password input
     tcgetattr(fileno(stdin), &oflags);
@@ -38,16 +42,17 @@ int loginMenu(char a[50], char pass[50]) {
     }
 
     // Read password
-    printf("\nEnter password: ");
+     printf("\t|  Password: ");
     fgets(pass, 50, stdin);
     pass[strcspn(pass, "\n")] = 0;
+    printf("\t|                                                  |\n");
 
     // Restore terminal
     if (tcsetattr(fileno(stdin), TCSANOW, &oflags) != 0) {
         perror("tcsetattr");
         exit(1);
     }
-
+     printf("\t+--------------------------------------------------+\n");
     // Fill user struct
     strncpy(user.name, a, sizeof(user.name) - 1);
     user.name[sizeof(user.name) - 1] = '\0';
@@ -55,21 +60,21 @@ int loginMenu(char a[50], char pass[50]) {
     // Fetch stored password hash
     stored_password = getPassword(user);
     if (strcmp(stored_password, "no user found") == 0) {
-        printf("\n\nUser not found. Please register first.\n");
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[!] User not found. Please register first.\n");
+        printf("\n\tPress any key to continue...");
         getch();
         return 0;
     }
 
     // Verify the password using the reusable function
     if (verifyPassword(pass, stored_password)) {
-        printf("\n\nLogin successful. Welcome, %s!\n", user.name);
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[✓] Login successful. Welcome, %s!\n", user.name);
+        printf("\n\tPress any key to continue...");
         getch();
         return 1;
     } else {
-        printf("\n\nInvalid password. Access denied.\n");
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[✗] Invalid password. Access denied.\n");
+        printf("\n\tPress any key to continue...");
         getch();
         return 0;
     }
@@ -157,16 +162,20 @@ void registerMenu(char a[50], char pass[50]) {
     int rc;
 
     system("clear");
-    printf("\n\n\n\t\t\t\t\t Bank Management System\n\t\t\t\t\t User Registration:");
-    printf("\n\nEnter the user name:");
+    printf("\n\n");
+    printf("\t+--------------------------------------------------+\n");
+    printf("\t|          BANK MANAGEMENT SYSTEM REGISTRATION     |\n");
+    printf("\t+--------------------------------------------------+\n");
+    printf("\t|  Enter username: ");
     fgets(a, 50, stdin);
     a[strcspn(a, "\n")] = 0;
+     printf("\t|                                                  |\n");
 
     // Check for invalid characters in username
     for (i = 0; a[i] != '\0'; i++) {
         if (!isalnum(a[i])) {
-            printf("\n\nInvalid username. Only alphanumeric characters (a-z, A-Z, 0-9) are allowed.\n");
-            printf("\n\nPress any key to continue...");
+            printf("\n\t[!] Invalid username. Only a-z, A-Z, 0-9 are allowed.\n");
+            printf("\n\tPress any key to continue...");
             getch();
             return;
         }
@@ -176,15 +185,15 @@ void registerMenu(char a[50], char pass[50]) {
     strcpy(sanitized_name, a);
 
     if (strlen(sanitized_name) == 0) {
-        printf("\n\nUsername cannot be empty.\n");
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[!] Username cannot be empty.\n");
+        printf("\n\tPress any key to continue...");
         getch();
         return;
     }
 
     if (isUsernameTaken(sanitized_name)) {
-        printf("\n\nUsername '%s' is already taken (case-insensitive). Please choose a different username.\n", sanitized_name);
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[!] Username '%s' is already taken.\n", sanitized_name);
+        printf("\n\tPress any key to continue...");
         getch();
         return;
     }
@@ -201,11 +210,11 @@ void registerMenu(char a[50], char pass[50]) {
 
     char confirm_pass[50];
 
-    printf("\n\nEnter the password:");
+    printf("\t|  Enter password: ");
     fgets(pass, 50, stdin);
     pass[strcspn(pass, "\n")] = 0;
 
-    printf("\nRe-enter the password:");
+    printf("\t|  Re-enter password: ");
     fgets(confirm_pass, 50, stdin);
     confirm_pass[strcspn(confirm_pass, "\n")] = 0;
 
@@ -214,17 +223,17 @@ void registerMenu(char a[50], char pass[50]) {
         perror("tcsetattr");
         exit(1);
     }
+    printf("\t+--------------------------------------------------+\n");
 
     if (strcmp(pass, confirm_pass) != 0) {
-        printf("\n\nPasswords do not match. Registration aborted.\n");
-        printf("\n\nPress any key to continue...");
-        getch();
+        printf("\n\t[!] Passwords do not match. Registration aborted.\n");
+        printf("\n\tPress any key to continue...");
         return;
     }
 
     if (strchr(pass, ' ') != NULL) {
-        printf("\n\nPassword cannot contain spaces. Registration aborted.\n");
-        printf("\n\nPress any key to continue...");
+        printf("\n\t[!] Password cannot contain spaces.\n");
+        printf("\n\tPress any key to continue...");
         getch();
         return;
     }
@@ -267,7 +276,7 @@ void registerMenu(char a[50], char pass[50]) {
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
-    printf("\n\nUser %s registered successfully!\n", sanitized_name);
-    printf("\n\nPress any key to continue...");
+    printf("\n\t[✓] User '%s' registered successfully!\n", sanitized_name);
+    printf("\n\tPress any key to continue...");
     getch();
 }

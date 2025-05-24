@@ -6,19 +6,6 @@
 #include <termios.h>
 #include <unistd.h>
 #include "../utils/terminal_utils.h"
-
-// static int getch(void) {
-//     struct termios oldt, newt;
-//     int ch;
-//     tcgetattr(STDIN_FILENO, &oldt);           // Save current terminal settings
-//     newt = oldt;
-//     newt.c_lflag &= ~(ICANON | ECHO);         // Disable buffered I/O and echo
-//     tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // Apply new settings
-//     ch = getchar();                           // Read one char (no Enter needed)
-//     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // Restore old settings
-//     return ch;
-// }
-
 #include <sqlite3.h>
 
 void getUserById(char username[50], struct User *u) {
@@ -63,11 +50,17 @@ void initMenu(struct User *u) {
     
     while (1) {
         system("clear");
-        printf("\n\n\n\t\t\t\t  Bank Management System\n\n");
-        printf("\n\t\t\t\t1. Login");
-        printf("\n\t\t\t\t2. Register");
-        printf("\n\t\t\t\t3. Exit");
-        printf("\n\n\t\t\t\tEnter your choice: ");
+        printf("\n\n");
+        printf("\t+--------------------------------------------------+\n");
+        printf("\t|              BANK MANAGEMENT SYSTEM              |\n");
+        printf("\t+--------------------------------------------------+\n");
+        printf("\t|                                                  |\n");
+        printf("\t|  1. Login                                        |\n");
+        printf("\t|  2. Register                                     |\n");
+        printf("\t|  3. Exit                                         |\n");
+        printf("\t|                                                  |\n");
+        printf("\t+--------------------------------------------------+\n");
+        printf("\n\tEnter your choice: ");
         fgets(input, sizeof(input), stdin);
         input[strcspn(input, "\n")] = 0;  // Remove newline
 
@@ -80,8 +73,8 @@ void initMenu(struct User *u) {
         }
 
         if (!valid || strlen(input) == 0) {
-            printf("\n\nInvalid input. Please enter a number.\n");
-            printf("\n\nPress any key to continue...");
+            printf("\n\t[!] Invalid input. Please enter a number.\n");
+            printf("\tPress any key to continue...");
             getch();
             continue;
         }
@@ -102,8 +95,8 @@ void initMenu(struct User *u) {
             case 3:
                 exit(0);
             default:
-                printf("\n\nInvalid choice. Please try again.\n");
-                printf("\n\nPress any key to continue...\n");
+                printf("\n\t[!] Invalid choice. Please try again.\n");
+                printf("\tPress any key to continue...");
                 getch();
         }
     }

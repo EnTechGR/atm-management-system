@@ -11,17 +11,23 @@ void mainMenu(struct User u) {
 
     while (!validOption) {
         system("clear");
-        printf("\n\n\t\t======= ATM =======\n\n");
-        printf("\n\t\t-->> Feel free to choose one of the options below <<--\n");
-        printf("\n\t\t[1]- Create a new account\n");
-        printf("\n\t\t[2]- Update account information\n");
-        printf("\n\t\t[3]- Check accounts\n");
-        printf("\n\t\t[4]- Check list of owned account\n");
-        printf("\n\t\t[5]- Make Transaction\n");
-        printf("\n\t\t[6]- Remove existing account\n");
-        printf("\n\t\t[7]- Transfer ownership\n");
-        printf("\n\t\t[8]- Exit\n");
-        printf("Please choose an option (1-8): ");
+        printf("\n");
+        printf("\t+------------------------------------------------------+\n");
+        printf("\t|                      A T M                           |\n");
+        printf("\t+------------------------------------------------------+\n");
+        printf("\t|  Feel free to choose one of the options below:       |\n");
+        printf("\t+------------------------------------------------------+\n");
+        printf("\t| [1] Create a new account                             |\n");
+        printf("\t| [2] Update account information                       |\n");
+        printf("\t| [3] Check account details                            |\n");
+        printf("\t| [4] View list of owned accounts                      |\n");
+        printf("\t| [5] Make a transaction                               |\n");
+        printf("\t| [6] Remove an existing account                       |\n");
+        printf("\t| [7] Transfer account ownership                       |\n");
+        printf("\t| [8] Exit                                             |\n");
+        printf("\t+------------------------------------------------------+\n");
+        printf("\t  Please choose an option (1-8): ");
+
 
         if (fgets(inputBuffer, sizeof(inputBuffer), stdin) == NULL) {
             printf("\nInput error. Exiting.\n");
