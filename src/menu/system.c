@@ -162,11 +162,28 @@ void updateAccount(struct User u) {
     }
 
     // Step 2: Prompt for account number
+    char input[100];
+    char *endptr;
+
     do {
         printf("Enter the account number you want to update: ");
-        if (scanf("%d", &accountToUpdate) != 1) {
-            printf("✖ Invalid input. Please enter a number.\n");
-            getch();
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            printf("✖ Input error. Please try again.\n");
+            continue;
+        }
+
+        // Remove newline
+        input[strcspn(input, "\n")] = '\0';
+
+        if (strlen(input) == 0) {
+            printf("✖ Input cannot be empty.\n");
+            continue;
+        }
+
+        accountToUpdate = (int)strtol(input, &endptr, 10);
+
+        if (*endptr != '\0') {
+            printf("✖ Invalid input. Please enter a valid number.\n");
             continue;
         }
 
@@ -184,15 +201,42 @@ void updateAccount(struct User u) {
 
     } while (!valid);
 
-    getchar(); // consume newline
+    //getchar(); // consume newline
 
     // Step 3: Ask what to update
-    printf("What would you like to update?\n");
-    printf("1. Country\n");
-    printf("2. Phone number\n");
-    printf("Enter your choice: ");
-    scanf("%d", &choice);
-    getchar(); // consume newline
+    char uInput[100];
+    char *uEndptr;
+    int validChoice = 0;
+
+    do {
+        printf("What would you like to update?\n");
+        printf("1. Country\n");
+        printf("2. Phone number\n");
+        printf("Enter your choice: ");
+
+        if (fgets(uInput, sizeof(uInput), stdin) == NULL) {
+            printf("✖ Input error. Please try again.\n");
+            continue;
+        }
+
+        // Remove newline
+        uInput[strcspn(uInput, "\n")] = '\0';
+
+        if (strlen(uInput) == 0) {
+            printf("✖ Input cannot be empty.\n");
+            continue;
+        }
+
+        choice = (int)strtol(uInput, &uEndptr, 10);
+
+        if (*uEndptr != '\0' || (choice != 1 && choice != 2)) {
+            printf("✖ Invalid choice. Please enter 1 or 2.\n");
+            continue;
+        }
+
+        validChoice = 1;
+
+    } while (!validChoice);
 
     char newValue[100];
     const char *updateSQL;
@@ -205,7 +249,10 @@ void updateAccount(struct User u) {
         updateSQL = "UPDATE accounts SET phone = ? WHERE user_id = ? AND account_id = ?";
     } else {
         printf("Invalid choice. Returning to main menu...\n");
-        getch();
+        printf("Press Enter to continue...");
+        char buffer[10];
+        fgets(buffer, sizeof(buffer), stdin);  // Wait for Enter
+
         mainMenu(u);
         sqlite3_close(db);  // Close db before returning!
         return;
