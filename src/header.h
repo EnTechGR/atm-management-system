@@ -47,20 +47,21 @@ void removeAccount(struct User u);
 void transferOwnership(struct User u);
 void checkAllAccounts(struct User u);
 void saveAccountToFile(FILE *ptr, struct User u, struct Record r);
-void stayOrReturn(int notGood, void (*f)(struct User), struct User u); // Corrected function pointer syntax
+void stayOrReturn(int notGood, void (*f)(struct User), struct User u);
 void success(struct User u);
 
 // ==== MENU FUNCTIONS ====
 void initMenu(struct User *u);
 void mainMenu(struct User u);
 
-// ==== INPUT VALIDATION FUNCTIONS (declarations only) ====
+// ==== INPUT VALIDATION FUNCTIONS ====
 void getValidDate(struct Date *date);
 void getValidCountry(char country[100]);
 void getValidPhone(char phone[11]);
 void getValidAmount(double *amount);
 void getValidAccountType(char accountType[10]);
-int getValidAccountNumber();
+// FIX: correct signature matching get_valid_account.c implementation
+int getValidAccountNumber(int *existingNumbers, int count);
 int getAccountFromFile(FILE *ptr, char name[50], struct Record *r);
 
 #endif // HEADER_H

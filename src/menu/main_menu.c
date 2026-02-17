@@ -3,13 +3,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <termios.h>
+#include <unistd.h>
 
 void mainMenu(struct User u) {
     char inputBuffer[10];
     int option;
-    int validOption = 0;
 
-    while (!validOption) {
+    // This loop handles the menu display and input validation.
+    // Each case calls a function that ends by invoking success(), which
+    // already asks the user "Enter 1 to go to the main menu or 0 to exit"
+    // and either calls mainMenu() recursively or calls exit().
+    // Therefore this loop will only iterate when the user enters an invalid
+    // option number — it does NOT need to wait for Enter after a valid action.
+    //
+    // FIX: removed the "Press Enter to return..." block that appeared after
+    //      each valid case.  It was dead code in normal flow (success() calls
+    //      mainMenu() before we'd get back here) and caused a double-Enter
+    //      requirement in edge cases where the function returned normally.
+    while (1) {
         system("clear");
         printf("\n");
         printf("\t+------------------------------------------------------+\n");
@@ -28,81 +40,56 @@ void mainMenu(struct User u) {
         printf("\t+------------------------------------------------------+\n");
         printf("\t  Please choose an option (1-8): ");
 
-
         if (fgets(inputBuffer, sizeof(inputBuffer), stdin) == NULL) {
             printf("\nInput error. Exiting.\n");
             exit(EXIT_FAILURE);
         }
 
-        inputBuffer[strcspn(inputBuffer, "\n")] = 0;
+        inputBuffer[strcspn(inputBuffer, "\n")] = '\0';
 
+        // Validate: must be all digits
         int i;
+        int allDigits = 1;
         for (i = 0; inputBuffer[i] != '\0'; i++) {
-            if (!isdigit(inputBuffer[i])) {
-                printf("\nInvalid input! Please enter a number between 1 and 8.\n");
+            if (!isdigit((unsigned char)inputBuffer[i])) {
+                allDigits = 0;
                 break;
             }
         }
 
-        if (inputBuffer[i] == '\0') {
-            if (sscanf(inputBuffer, "%d", &option) == 1) {
-                switch (option) {
-                    case 1:
-                        createNewAcc(u);
-                        validOption = 1; // Set flag to exit the loop after a valid action
-                        break;
-                    case 2:
-                        // student TODO : add your **Update account information** function
-                        // here
-                        updateAccount(u);
-                        validOption = 1;
-                        break;
-                    case 3:
-                        // student TODO : add your **Check the details of existing accounts** function
-                        // here
-                        checkAccountDetails(u);
-                        validOption = 1;
-                        break;
-                    case 4:
-                        checkAllAccounts(u);
-                        validOption = 1;
-                        break;
-                    case 5:
-                        // student TODO : add your **Make transaction** function
-                        // here
-                        makeTransaction(u);
-                        validOption = 1;
-                        break;
-                    case 6:
-                        // student TODO : add your **Remove existing account** function
-                        // here
-                        removeAccount(u);
-                        validOption = 1;
-                        break;
-                    case 7:
-                        // student TODO : add your **Transfer owner** function
-                        // here
-                        transferOwnership(u);
-                        validOption = 1;
-                        break;
-                    case 8:
-                        exit(0);
-                        break;
-                    default:
-                        printf("Invalid operation (1-8)!\n");
-                }
-            } else {
-                printf("\nInvalid input! Please enter a number between 1 and 8.\n");
-            }
+        if (!allDigits || strlen(inputBuffer) == 0) {
+            printf("\nInvalid input! Please enter a number between 1 and 8.\n");
+            // Small pause so the user can read the error before clear()
+            printf("\tPress any key to continue...");
+            fflush(stdout);
+            // consume one character without requiring Enter
+            struct termios oldt, newt;
+            tcgetattr(STDIN_FILENO, &oldt);
+            newt = oldt;
+            newt.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
+            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+            getchar();
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            continue;
         }
 
-        // If the option was invalid (out of range), we don't set validOption
-        // and the loop continues to prompt the user again.
-        if (validOption) {
-            // Optionally add a pause here before returning to the main menu
-            printf("\nPress Enter to return to the main menu...");
-            while (getchar() != '\n'); // Consume any remaining input
-            getchar(); // Wait for Enter press
+        if (sscanf(inputBuffer, "%d", &option) != 1) {
+            printf("\nInvalid input! Please enter a number between 1 and 8.\n");
+            continue;
+        }
+
+        switch (option) {
+            case 1: createNewAcc(u);       return;
+            case 2: updateAccount(u);      return;
+            case 3: checkAccountDetails(u); return;
+            case 4: checkAllAccounts(u);   return;
+            case 5: makeTransaction(u);    return;
+            case 6: removeAccount(u);      return;
+            case 7: transferOwnership(u);  return;
+            case 8: exit(0);
+            default:
+                printf("\nInvalid operation! Please choose between 1 and 8.\n");
+                break;
         }
     }
 }
