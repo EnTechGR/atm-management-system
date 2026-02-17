@@ -1,89 +1,58 @@
 #include "header.h"
-#include <ctype.h>
+#include "ui/tui.h"
 
-#define MAX_INPUT 100
+/* ── success() ───────────────────────────────────────────────────────────────
+   Shows a "what next?" modal after every successful operation.
+   Returns immediately — the mainMenu() while-loop handles redrawing.
+   This avoids the previous stack-building recursion
+   (success → mainMenu → op → success → mainMenu → …).
+   ─────────────────────────────────────────────────────────────────────────── */
+void success(struct User u) {
+    (void)u;   /* u is kept in the signature for API compatibility */
 
-void stayOrReturn(int notGood, void f(struct User u), struct User u) {
-    int option;
-    if (notGood == 0) {
-        system("clear");
-        printf("\n✖ Record not found!!\n");
-    invalid:
-        printf("\nEnter 0 to try again, 1 to return to main menu and 2 to exit:");
-        scanf("%d", &option);
-        if (option == 0)
-            f(u);
-        else if (option == 1)
-            mainMenu(u);
-        else if (option == 2)
-            exit(0);
-        else {
-            printf("Insert a valid operation!\n");
-            goto invalid;
-        }
-    } else {
-        printf("\nEnter 1 to go to the main menu and 0 to exit:");
-        scanf("%d", &option);
+    const char *opts[] = {
+        "Return to Main Menu",
+        "Exit Application",
+        NULL
+    };
+    int choice = tui_modal_menu("DONE", opts, "ENTER to confirm");
+    if (choice == 1) {
+        tui_cleanup();
+        exit(0);
     }
-    if (option == 1) {
-        system("clear");
-        mainMenu(u);
-    } else {
-        system("clear");
-        exit(1);
-    }
+    /* choice == 0 or ESC: just return.
+       mainMenu's while(1) loop will redraw the menu on the next iteration. */
 }
 
-void success(struct User u) {
-    char input[MAX_INPUT];
-    char *endptr;
-    long option;
+/* ── stayOrReturn() ──────────────────────────────────────────────────────────
+   Called when a record is not found or a sub-operation fails.
+   notGood == 0  → show "Record not found" + three choices.
+   notGood != 0  → show two choices.
+   ─────────────────────────────────────────────────────────────────────────── */
+void stayOrReturn(int notGood, void (*f)(struct User), struct User u) {
+    if (notGood == 0) {
+        tui_modal_error("Record not found!");
 
-    printf("\n✔ Success!\n\n");
-
-    while (1) {
-        printf("Enter 1 to go to the main menu and 0 to exit:\n");
-
-        // Read full input line
-        if (!fgets(input, sizeof(input), stdin)) {
-            printf("Error reading input. Try again.\n");
-            continue;
+        const char *opts[] = {
+            "Try Again",
+            "Return to Main Menu",
+            "Exit Application",
+            NULL
+        };
+        int choice = tui_modal_menu("WHAT NEXT?", opts, "ENTER to confirm");
+        switch (choice) {
+            case 0:  if (f) { f(u); } return;
+            case 1:  return;   /* mainMenu loop handles the rest */
+            default: tui_cleanup(); exit(0);
         }
-
-        // Remove trailing newline if present
-        input[strcspn(input, "\n")] = 0;
-
-        // Use a pointer to traverse input
-        char *ptr = input;
-
-        // Skip leading spaces
-        while (isspace((unsigned char)*ptr)) ptr++;
-
-        if (*ptr == '\0') {
-            printf("Insert a valid operation!\n");
-            continue;
-        }
-
-        // Convert to long and validate
-        option = strtol(ptr, &endptr, 10);
-
-        // If there's leftover non-digit characters, it's invalid
-        while (isspace((unsigned char)*endptr)) endptr++; // skip trailing spaces
-
-        if (*endptr != '\0') {
-            printf("Insert a valid operation!\n");
-            continue;
-        }
-
-        system("clear");
-
-        if (option == 1) {
-            mainMenu(u);
-            break;
-        } else if (option == 0) {
-            exit(1);
-        } else {
-            printf("Insert a valid operation!\n");
-        }
+    } else {
+        const char *opts[] = {
+            "Return to Main Menu",
+            "Exit Application",
+            NULL
+        };
+        int choice = tui_modal_menu("WHAT NEXT?", opts, "ENTER to confirm");
+        if (choice == 1) { tui_cleanup(); exit(0); }
+        /* else: return, mainMenu loop continues */
     }
 }
