@@ -39,6 +39,14 @@ void tui_footer(const char *hint);
    4-byte emoji codepoints = 2 cols each. */
 int tui_dispw(const char *s);
 
+/* Word-wrap a string inside a window.
+   Prints at most max_lines lines, each at most inner_w columns wide,
+   starting at (start_y, margin_x).
+   Returns the number of lines actually printed. */
+int tui_print_wrapped(WINDOW *win, int start_y, int margin_x,
+                      int inner_w, int max_lines,
+                      int color_pair, const char *text);
+
 /* ── Window helpers ──────────────────────────────────────────────────────── */
 WINDOW *tui_win_new(int h, int w, int y, int x, const char *title);
 void    tui_win_destroy(WINDOW *win);

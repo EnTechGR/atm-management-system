@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include "../header.h"
+#include "validators.h"
 
 int accountNumberInList(int *list, int size, int number) {
     for (int i = 0; i < size; i++) {
@@ -39,47 +40,17 @@ void getValidAccountType(char accountType[10]) {
 // Validate account number
 int getValidAccountNumber(int *existingNumbers, int count) {
     char input[20];
-    int accountNbr = 0;
-    int valid = 0;
+    char err[VALIDATOR_ERR_BUF];
+    int value;
 
-    while (!valid) {
+    while (1) {
         printf("\nEnter the account number: ");
-        if (fgets(input, sizeof(input), stdin) != NULL) {
-            // Remove newline
-            size_t len = strlen(input);
-            if (len > 0 && input[len - 1] == '\n') {
-                input[len - 1] = '\0';
-                len--;
-            }
+        if (fgets(input, sizeof(input), stdin) == NULL) continue;
+        size_t len = strlen(input);
+        if (len > 0 && input[len - 1] == '\n') input[--len] = '\0';
 
-            // Check digits only
-            valid = 1;
-            for (size_t i = 0; i < len; i++) {
-                if (!isdigit(input[i])) {
-                    valid = 0;
-                    printf("Account number should contain only digits.\n");
-                    break;
-                }
-            }
-
-            if (valid && len > 0 && len <= 10) {
-                accountNbr = atoi(input);
-                if (accountNbr <= 0) {
-                    valid = 0;
-                    printf("Account number must be positive.\n");
-                } else if (accountNumberInList(existingNumbers, count, accountNbr)) {
-                    valid = 0;
-                    printf("✖ This Account already exists for this user.\n");
-                }
-            } else if (len > 10) {
-                valid = 0;
-                printf("Account number is too long. Max 10 digits allowed.\n");
-            } else if (len == 0) {
-                valid = 0;
-                printf("Account number cannot be empty.\n");
-            }
-        }
+        if (val_account_number(input, existingNumbers, count, &value, err))
+            return value;
+        printf("Error: %s\n", err);
     }
-
-    return accountNbr;
 }

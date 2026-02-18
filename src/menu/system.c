@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sqlite3.h>
 #include "../utils/ipc_utils.h"
+#include "../validation/validators.h"
 
 /* Forward: country validator lives in get_valid_country.c */
 extern int findCountryByAnyField(const char *input,
@@ -62,7 +63,7 @@ void getAccountIDsForUserDB(sqlite3 *db, const char *username,
 #define FX   26   /* input field column */
 #define FW   28   /* input field width  */
 
-/* Print a right-aligned label in CP_LABEL */
+/* ── _label : right-aligned green label ────────────────────────────────── */
 static void _label(WINDOW *w, int y, const char *text) {
     wattron(w, COLOR_PAIR(CP_LABEL) | A_BOLD);
     mvwprintw(w, y, LX, "%-*s:", FX - LX - 2, text);
@@ -70,18 +71,49 @@ static void _label(WINDOW *w, int y, const char *text) {
     wrefresh(w);
 }
 
-/* Error/status row — always the second-to-last row */
+/* ── _hint : dim informational line, always clamped to inner window width ─ */
+static void _hint(WINDOW *w, int y, const char *text) {
+    int ww    = getmaxx(w);
+    int avail = ww - LX - 2;          /* usable columns inside the border  */
+    if (avail < 4) return;
+
+    /* Build into a local buffer so we can truncate safely */
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s", text);
+    if ((int)strlen(buf) > avail) {
+        buf[avail - 3] = '.';
+        buf[avail - 2] = '.';
+        buf[avail - 1] = '.';
+        buf[avail]     = '\0';
+    }
+
+    wattron(w, COLOR_PAIR(CP_DIM));
+    mvwhline(w, y, 1, ' ', ww - 2);   /* clear any leftover text on that row */
+    mvwprintw(w, y, LX, "%s", buf);
+    wattroff(w, COLOR_PAIR(CP_DIM));
+    wrefresh(w);
+}
+
+/* ── _err : red error row at second-to-last row ─────────────────────────── */
 static void _err(WINDOW *w, const char *msg) {
     int ww = getmaxx(w), wh = getmaxy(w);
-    wattron(w, COLOR_PAIR(CP_ERROR));
+    wattron(w, COLOR_PAIR(CP_ERROR) | A_BOLD);
     mvwhline(w, wh - 2, 1, ' ', ww - 2);
-    if (msg) mvwprintw(w, wh - 2, 2, "%s", msg);
-    wattroff(w, COLOR_PAIR(CP_ERROR));
+    if (msg) mvwprintw(w, wh - 2, 2, "  [!] %s", msg);
+    wattroff(w, COLOR_PAIR(CP_ERROR) | A_BOLD);
     wrefresh(w);
 }
 static void _err_clr(WINDOW *w) { _err(w, NULL); }
 
-/* Restore the green border (input drawing can clobber corners) */
+/* ── _ok : green [OK] tag after a confirmed field ────────────────────────── */
+static void _ok(WINDOW *w, int y) {
+    wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
+    mvwprintw(w, y, FX + FW + 1, "[OK]");
+    wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
+    wrefresh(w);
+}
+
+/* ── _rebox : re-draw the green border (input can clobber corners) ────────── */
 static void _rebox(WINDOW *w) {
     wattron(w, COLOR_PAIR(CP_BORDER));
     box(w, 0, 0);
@@ -91,150 +123,164 @@ static void _rebox(WINDOW *w) {
 
 /* ── Account number ──────────────────────────────────────────────────────── */
 static int _field_acct_nbr(WINDOW *w, int y,
-                             int *existing, int n, int *out) {
+                             int *existing, int n, int *out)
+{
     _label(w, y, "Account Number");
+    _hint(w, y + 1, "  Positive integer, max 10 digits, must be unique");
+
     for (;;) {
         _err_clr(w); _rebox(w);
         char buf[32] = {0};
         if (!tui_input(w, y, FX, FW, buf, 10, 0) || !buf[0]) return 0;
-        int ok = 1;
-        for (int i = 0; buf[i]; i++)
-            if (!isdigit((unsigned char)buf[i])) { ok = 0; break; }
-        if (!ok) { _err(w, "Digits only — no letters or symbols."); continue; }
-        int v = atoi(buf);
-        if (v <= 0) { _err(w, "Account number must be a positive integer."); continue; }
-        int dup = 0;
-        for (int i = 0; i < n; i++) if (existing[i] == v) { dup = 1; break; }
-        if (dup) { _err(w, "That account number already exists."); continue; }
-        *out = v;
-        wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        mvwprintw(w, y, FX + FW + 1, "[OK]");
-        wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        wrefresh(w);
+
+        char err[VALIDATOR_ERR_BUF];
+        if (!val_account_number(buf, existing, n, out, err)) {
+            _err(w, err);
+            continue;
+        }
+        _ok(w, y);
         return 1;
     }
 }
 
 /* ── Date ────────────────────────────────────────────────────────────────── */
-static int _field_date(WINDOW *w, int y, struct Date *out) {
-    time_t now = time(NULL); struct tm *t = localtime(&now);
+static int _field_date(WINDOW *w, int y, struct Date *out)
+{
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+
     _label(w, y, "Date (MM/DD/YYYY)");
-    wattron(w, COLOR_PAIR(CP_DIM));
-    mvwprintw(w, y, FX + FW + 1, " leave blank = today");
-    wattroff(w, COLOR_PAIR(CP_DIM));
-    wrefresh(w);
+
+    /* Static hint: show today's date so the user knows what "blank" gives */
+    char hint[80];
+    snprintf(hint, sizeof(hint),
+             "  Press ENTER to use today: %02d/%02d/%04d",
+             t->tm_mon + 1, t->tm_mday, t->tm_year + 1900);
+    _hint(w, y + 1, hint);
+
     for (;;) {
         _err_clr(w); _rebox(w);
         char buf[20] = {0};
         tui_input(w, y, FX, FW, buf, 18, 0);
-        if (!buf[0]) {          /* blank → today */
+
+        if (!buf[0]) {
+            /* blank → today */
             out->month = t->tm_mon + 1;
             out->day   = t->tm_mday;
             out->year  = t->tm_year + 1900;
+            /* show resolved date in the field */
             wattron(w, COLOR_PAIR(CP_FIELD));
-            mvwprintw(w, y, FX, "%02d/%02d/%04d", out->month, out->day, out->year);
+            mvwprintw(w, y, FX, "%02d/%02d/%04d",
+                      out->month, out->day, out->year);
             wattroff(w, COLOR_PAIR(CP_FIELD));
-            wrefresh(w); return 1;
+            _ok(w, y);
+            return 1;
         }
+
+        char err[VALIDATOR_ERR_BUF];
         int mo, dy, yr;
-        if (sscanf(buf, "%d/%d/%d", &mo, &dy, &yr) != 3)
-            { _err(w, "Format: MM/DD/YYYY  e.g. 03/15/2024"); continue; }
-        if (mo < 1 || mo > 12) { _err(w, "Month must be between 1 and 12."); continue; }
-        if (yr < 2000 || yr > 2100) { _err(w, "Year must be between 2000 and 2100."); continue; }
-        int md = 31;
-        if      (mo == 4 || mo == 6 || mo == 9 || mo == 11) md = 30;
-        else if (mo == 2)
-            md = ((yr % 4 == 0 && yr % 100 != 0) || yr % 400 == 0) ? 29 : 28;
-        if (dy < 1 || dy > md)
-            { char e[56]; snprintf(e,sizeof(e),"Day must be 1-%d for month %d.",md,mo); _err(w,e); continue; }
+        if (!val_date(buf, &mo, &dy, &yr, err)) {
+            _err(w, err);
+            continue;
+        }
         out->month = mo; out->day = dy; out->year = yr;
-        wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        mvwprintw(w, y, FX + FW + 1, "[OK]");
-        wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        wrefresh(w); return 1;
+        _ok(w, y);
+        return 1;
     }
 }
 
 /* ── Country ──────────────────────────────────────────────────────────────── */
-static int _field_country(WINDOW *w, int y, char *out) {
+static int _field_country(WINDOW *w, int y, char *out)
+{
     _label(w, y, "Country");
-    wattron(w, COLOR_PAIR(CP_DIM));
-    mvwprintw(w, y, FX + FW + 1, " name / 2-letter / 3-letter code");
-    wattroff(w, COLOR_PAIR(CP_DIM));
-    wrefresh(w);
+    _hint(w, y + 1, "  Name, 2-letter (US) or 3-letter (DEU) ISO code");
+
     for (;;) {
         _err_clr(w); _rebox(w);
         char buf[100] = {0};
         if (!tui_input(w, y, FX, FW, buf, 98, 0) || !buf[0]) return 0;
-        char matched[100];
-        if (findCountryByAnyField(buf, matched, sizeof(matched))) {
-            strncpy(out, matched, 99); out[99] = '\0';
-            wattron(w, COLOR_PAIR(CP_FIELD));
-            mvwprintw(w, y, FX, "%-*s", FW, matched);
-            wattroff(w, COLOR_PAIR(CP_FIELD));
-            wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-            mvwprintw(w, y, FX + FW + 1, "[OK]");
-            wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-            wrefresh(w); return 1;
+
+        char matched[100], err[VALIDATOR_ERR_BUF];
+        if (!val_country(buf, matched, err)) {
+            _err(w, err);
+            continue;
         }
-        _err(w, "Country not found.  Try: 'France', 'US', 'DEU', 'Brazil' ...");
+
+        strncpy(out, matched, 99); out[99] = '\0';
+
+        /* Display truncated in the field */
+        char disp[100];
+        strncpy(disp, matched, sizeof(disp) - 1);
+        disp[sizeof(disp) - 1] = '\0';
+        if ((int)strlen(disp) > FW - 1) {
+            disp[FW - 4] = '.'; disp[FW - 3] = '.';
+            disp[FW - 2] = '.'; disp[FW - 1] = '\0';
+        }
+        wattron(w, COLOR_PAIR(CP_FIELD));
+        mvwprintw(w, y, FX, "%-*s", FW - 1, disp);
+        wattroff(w, COLOR_PAIR(CP_FIELD));
+        _ok(w, y);
+
+        /* Show the full resolved name in the hint row */
+        char full_hint[160];
+        snprintf(full_hint, sizeof(full_hint), "  -> %s", matched);
+        _hint(w, y + 1, full_hint);
+
+        return 1;
     }
 }
 
 /* ── Phone ───────────────────────────────────────────────────────────────── */
-static int _field_phone(WINDOW *w, int y, char *out) {
-    _label(w, y, "Phone (10 digits)");
+static int _field_phone(WINDOW *w, int y, char *out)
+{
+    _label(w, y, "Phone Number");
+    _hint(w, y + 1, "  8 to 10 digits, no spaces or dashes");
+
     for (;;) {
         _err_clr(w); _rebox(w);
         char buf[20] = {0};
         if (!tui_input(w, y, FX, 12, buf, 11, 0) || !buf[0]) return 0;
-        if ((int)strlen(buf) != 10) { _err(w, "Must be exactly 10 digits, no spaces or dashes."); continue; }
-        int ok = 1;
-        for (int i = 0; buf[i]; i++)
-            if (!isdigit((unsigned char)buf[i])) { ok = 0; break; }
-        if (!ok) { _err(w, "Digits only — no spaces, dashes, or letters."); continue; }
+
+        char err[VALIDATOR_ERR_BUF];
+        if (!val_phone(buf, err)) {
+            _err(w, err);
+            continue;
+        }
         strncpy(out, buf, 10); out[10] = '\0';
-        wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        mvwprintw(w, y, FX + 13, "[OK]");
-        wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        wrefresh(w); return 1;
+        _ok(w, y);
+        return 1;
     }
 }
 
 /* ── Amount ──────────────────────────────────────────────────────────────── */
-static int _field_amount(WINDOW *w, int y, double *out) {
+static int _field_amount(WINDOW *w, int y, double *out)
+{
     _label(w, y, "Amount ($)");
+    _hint(w, y + 1, "  Positive number, up to 2 decimal places (e.g. 1500 or 99.50)");
+
     for (;;) {
         _err_clr(w); _rebox(w);
         char buf[48] = {0};
         if (!tui_input(w, y, FX, FW, buf, 46, 0) || !buf[0]) return 0;
-        if (strchr(buf, ',')) { _err(w, "Use '.' for decimal point, not ','."); continue; }
-        char *dot = strchr(buf, '.');
-        if (dot && (int)strlen(dot + 1) > 2) { _err(w, "At most 2 decimal places allowed."); continue; }
-        int ok = 1, dots = 0;
-        for (int i = 0; buf[i]; i++) {
-            if (buf[i] == '.') { if (++dots > 1) { ok = 0; break; } }
-            else if (!isdigit((unsigned char)buf[i])) { ok = 0; break; }
+
+        char err[VALIDATOR_ERR_BUF];
+        if (!val_amount(buf, out, err)) {
+            _err(w, err);
+            continue;
         }
-        if (!ok) { _err(w, "Enter a valid amount, e.g.  1500  or  99.50"); continue; }
-        double v = atof(buf);
-        if (v <= 0.0) { _err(w, "Amount must be greater than zero."); continue; }
-        *out = v;
-        wattron(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        mvwprintw(w, y, FX + FW + 1, "[OK]");
-        wattroff(w, COLOR_PAIR(CP_SUCCESS) | A_BOLD);
-        wrefresh(w); return 1;
+        _ok(w, y);
+        return 1;
     }
 }
 
 /* ── Account type (menu modal) ───────────────────────────────────────────── */
 static int _pick_acct_type(char *out) {
     const char *opts[] = {
-        "savings   — variable,  7% interest/yr",
-        "current   — no interest",
-        "fixed01   — 1-year term, 4% interest/yr",
-        "fixed02   — 2-year term, 5% interest/yr",
-        "fixed03   — 3-year term, 8% interest/yr",
+        "savings   - variable rate,  7% interest / yr",
+        "current   - no interest",
+        "fixed01   - 1-year term,    4% interest / yr",
+        "fixed02   - 2-year term,    5% interest / yr",
+        "fixed03   - 3-year term,    8% interest / yr",
         NULL
     };
     const char *keys[] = { "savings","current","fixed01","fixed02","fixed03" };
@@ -243,6 +289,7 @@ static int _pick_acct_type(char *out) {
     strncpy(out, keys[ch], 9); out[9] = '\0';
     return 1;
 }
+
 
 /* ── Build a formatted string list for tui_pick_item ────────────────────── */
 static void _build_list(int *ids, double *bals, char types[][20],
@@ -273,24 +320,27 @@ void createNewAcc(struct User u) {
         sqlite3_finalize(stmt);
     }
 
-    /* Form window */
-    int wh = 22, ww = 70;
+    /* ── Form window ── */
+    int wh = 20, ww = 70;
     int wy = (LINES - wh) / 2, wx = (COLS - ww) / 2;
     WINDOW *win = tui_win_new(wh, ww, wy, wx, "CREATE NEW ACCOUNT");
     tui_header(u.name);
-    tui_footer("ESC cancels field   ENTER accepts   Fields marked [OK] are confirmed");
+    tui_footer("ESC cancels field   ENTER accepts   [OK] = field confirmed");
 
-    /* Info line */
+    /* Info lines */
     wattron(win, COLOR_PAIR(CP_DIM));
     mvwprintw(win, 1, LX, "New account for: %s", u.name);
     if (excnt > 0) {
-        char ex[80] = "Existing IDs: ";
-        for (int i = 0; i < excnt && (int)strlen(ex) < 66; i++) {
-            char tmp[14];
-            snprintf(tmp, sizeof(tmp), "%d%s", existing[i],
-                     (i < excnt - 1) ? ", " : "");
+        char ex[256] = "Existing IDs: ";
+        for (int i = 0; i < excnt && (int)strlen(ex) < 200; i++) {
+            char tmp[16];
+            snprintf(tmp, sizeof(tmp), "%d%s",
+                     existing[i], (i < excnt - 1) ? ", " : "");
             strncat(ex, tmp, sizeof(ex) - strlen(ex) - 1);
         }
+        /* clamp the existing-IDs line to inner window width */
+        int avail = ww - LX - 2;
+        if ((int)strlen(ex) > avail) { ex[avail-3]='.'; ex[avail-2]='.'; ex[avail-1]='.'; ex[avail]='\0'; }
         mvwprintw(win, 2, LX, "%s", ex);
     }
     wattroff(win, COLOR_PAIR(CP_DIM));
@@ -301,16 +351,16 @@ void createNewAcc(struct User u) {
 
     struct Record r; memset(&r, 0, sizeof(r)); r.userId = u.id;
 
-    /* Collect all fields — ESC from any field aborts the whole form */
+    /* ── Collect fields — each at (row, row+1) ── */
     if (!_field_acct_nbr(win,  5, existing, excnt, &r.accountNbr)) goto abort;
     if (!_field_date    (win,  7, &r.deposit))                      goto abort;
     if (!_field_country (win,  9, r.country))                       goto abort;
-    if (!_field_phone   (win, 12, r.phone))                         goto abort;
-    if (!_field_amount  (win, 14, &r.amount))                       goto abort;
+    if (!_field_phone   (win, 11, r.phone))                         goto abort;
+    if (!_field_amount  (win, 13, &r.amount))                       goto abort;
     tui_win_destroy(win); win = NULL;
     if (!_pick_acct_type(r.accountType))                            goto abort2;
 
-    /* Insert */
+    /* ── Insert ── */
     {
         const char *ins =
             "INSERT INTO accounts "
@@ -590,38 +640,82 @@ void checkAllAccounts(struct User u) {
     sqlite3_close(db);
 
     int wh = LINES - 4, ww = COLS - 4;
-    char wtitle[64];
-    snprintf(wtitle, sizeof(wtitle), "ALL ACCOUNTS — %s", u.name);
+
+    /* Title: plain ASCII only — em-dash caused garbled rendering */
+    char wtitle[80];
+    snprintf(wtitle, sizeof(wtitle), "ALL ACCOUNTS - %.44s", u.name);
+
     WINDOW *win = tui_win_new(wh, ww, 2, 2, wtitle);
-    tui_header(u.name); tui_footer("Press any key to return to the menu");
+    tui_header(u.name);
+    tui_footer("Press any key to return to the menu");
+
+    /* Column widths — must match between header and data rows */
+    #define CW_ID       8
+    #define CW_DATE    12
+    #define CW_COUNTRY 22   /* cap: long names get "..." */
+    #define CW_PHONE   13
+    #define CW_BAL     13
 
     if (count == 0) {
         wattron(win, COLOR_PAIR(CP_DIM));
         mvwprintw(win, 3, 4, "No accounts found.");
         wattroff(win, COLOR_PAIR(CP_DIM));
     } else {
+        /* Header row */
         wattron(win, COLOR_PAIR(CP_LABEL) | A_BOLD);
         mvwprintw(win, 2, 3,
-                  "%-8s  %-12s  %-20s  %-12s  %-13s  %s",
-                  "Acct ID", "Date", "Country", "Phone", "Balance", "Type");
+                  "%-*s  %-*s  %-*s  %-*s  %-*s  %s",
+                  CW_ID,      "Acct ID",
+                  CW_DATE,    "Date",
+                  CW_COUNTRY, "Country",
+                  CW_PHONE,   "Phone",
+                  CW_BAL,     "Balance",
+                  "Type");
         wattroff(win, COLOR_PAIR(CP_LABEL) | A_BOLD);
+
         wattron(win, COLOR_PAIR(CP_BORDER));
         mvwhline(win, 3, 3, ACS_HLINE, ww - 6);
         wattroff(win, COLOR_PAIR(CP_BORDER));
 
         for (int i = 0; i < count && (4 + i) < wh - 2; i++) {
-            int yr=0, mo=0, dy=0;
+            /* Parse stored date (YYYY-MM-DD) -> display as DD/MM/YYYY */
+            int yr = 0, mo = 0, dy = 0;
             sscanf(dates[i], "%4d-%2d-%2d", &yr, &mo, &dy);
-            char dfmt[12];
+            char dfmt[13];
             snprintf(dfmt, sizeof(dfmt), "%02d/%02d/%04d", dy, mo, yr);
+
+            /* Truncate country to CW_COUNTRY columns */
+            char ctry[CW_COUNTRY + 1];
+            strncpy(ctry, countries[i], CW_COUNTRY);
+            ctry[CW_COUNTRY] = '\0';
+            if ((int)strlen(countries[i]) > CW_COUNTRY) {
+                ctry[CW_COUNTRY - 3] = '.';
+                ctry[CW_COUNTRY - 2] = '.';
+                ctry[CW_COUNTRY - 1] = '.';
+            }
+
+            /* Balance string */
+            char balfmt[CW_BAL + 1];
+            snprintf(balfmt, sizeof(balfmt), "$%.2f", bals[i]);
+
             wattron(win, COLOR_PAIR(i % 2 == 0 ? CP_NORMAL : CP_DIM));
             mvwprintw(win, 4 + i, 3,
-                      "%-8d  %-12s  %-20s  %-12s  $%-12.2f  %s",
-                      ids[i], dfmt, countries[i], phones[i],
-                      bals[i], types[i]);
+                      "%-*d  %-*s  %-*s  %-*s  %-*s  %s",
+                      CW_ID,      ids[i],
+                      CW_DATE,    dfmt,
+                      CW_COUNTRY, ctry,
+                      CW_PHONE,   phones[i],
+                      CW_BAL,     balfmt,
+                      types[i]);
             wattroff(win, COLOR_PAIR(i % 2 == 0 ? CP_NORMAL : CP_DIM));
         }
     }
+
+    #undef CW_ID
+    #undef CW_DATE
+    #undef CW_COUNTRY
+    #undef CW_PHONE
+    #undef CW_BAL
 
     wattron(win, COLOR_PAIR(CP_BORDER));
     mvwprintw(win, wh - 2, (ww - 17) / 2, "[ Press any key ]");

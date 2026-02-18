@@ -411,12 +411,46 @@ void tui_draw_logo(WINDOW *win, int starty, int startx) {
 
 /* Generic info popup.  icon and msg are plain ASCII for reliable centering. */
 static void _modal_info(const char *msg, int cpair, const char *icon) {
-    int msgw = tui_dispw(msg);
-    int iw   = tui_dispw(icon);
-    int mw   = ((msgw > iw) ? msgw : iw) + 8;
-    if (mw < 42)       mw = 42;
-    if (mw > COLS - 4) mw = COLS - 4;
-    int mh = 8;
+    /* Cap width so text never bleeds to screen edges */
+    int max_mw = COLS - 6;
+    if (max_mw < 30) max_mw = 30;
+
+    int inner_w = max_mw - 6;          /* 3-col margin each side inside border */
+    int iw      = tui_dispw(icon);
+
+    /* Count how many wrapped lines the message needs */
+    /* (reuse tui_print_wrapped logic: crude estimate — 1 pass) */
+    int msg_lines = 0;
+    {
+        const char *p = msg;
+        while (*p) {
+            int col = 0;
+            const unsigned char *s = (const unsigned char *)p;
+            const unsigned char *last_sp = NULL; int last_bytes = 0, bytes = 0;
+            while (*s) {
+                unsigned long cp = 0; int b = 1;
+                if      (*s < 0x80)                                { cp = *s;            b = 1; }
+                else if ((*s & 0xE0)==0xC0 && *(s+1))             { cp=(*s&0x1F)<<6|(*(s+1)&0x3F);                           b=2; }
+                else if ((*s & 0xF0)==0xE0 && *(s+1) && *(s+2))   { cp=(*s&0x0F)<<12|(*(s+1)&0x3F)<<6|(*(s+2)&0x3F);         b=3; }
+                else if ((*s & 0xF8)==0xF0 && *(s+1) && *(s+2) && *(s+3)) {
+                    cp=(*s&0x07)<<18|(*(s+1)&0x3F)<<12|(*(s+2)&0x3F)<<6|(*(s+3)&0x3F); b=4; }
+                int w = (cp >= 0x1F000) ? 2 : 1;
+                if (col + w > inner_w) break;
+                if (*s == ' ') { last_sp = s; last_bytes = bytes; }
+                col += w; bytes += b; s += b;
+            }
+            if (*s && last_sp) bytes = last_bytes;
+            p += bytes; if (*p == ' ') p++;
+            msg_lines++;
+            if (msg_lines > 8) break;   /* hard cap */
+        }
+    }
+    if (msg_lines < 1) msg_lines = 1;
+
+    /* Height: border(2) + gap(1) + icon(1) + gap(1) + msg lines + gap(1) + prompt(1) */
+    int mh = 2 + 1 + 1 + 1 + msg_lines + 1 + 1;
+    if (mh < 8) mh = 8;
+    int mw = max_mw;
     int my = (LINES - mh) / 2;
     int mx = (COLS  - mw) / 2;
 
@@ -429,17 +463,18 @@ static void _modal_info(const char *msg, int cpair, const char *icon) {
     mvwprintw(pop, 0, (mw - (int)strlen(hdr)) / 2, "%s", hdr);
     wattroff(pop, COLOR_PAIR(cpair) | A_BOLD);
 
+    /* Icon row */
     wattron(pop, COLOR_PAIR(cpair) | A_BOLD);
     mvwprintw(pop, 2, (mw - iw) / 2, "%s", icon);
     wattroff(pop, COLOR_PAIR(cpair) | A_BOLD);
 
-    wattron(pop, COLOR_PAIR(CP_NORMAL));
-    mvwprintw(pop, 4, (mw - msgw) / 2, "%s", msg);
-    wattroff(pop, COLOR_PAIR(CP_NORMAL));
+    /* Message — word-wrapped, left-margin 3 inside border */
+    tui_print_wrapped(pop, 4, 3, inner_w, msg_lines, CP_NORMAL, msg);
 
+    /* Prompt */
     const char *cont = "[ Press any key ]";
     wattron(pop, COLOR_PAIR(CP_DIM));
-    mvwprintw(pop, 6, (mw - (int)strlen(cont)) / 2, "%s", cont);
+    mvwprintw(pop, mh - 2, (mw - (int)strlen(cont)) / 2, "%s", cont);
     wattroff(pop, COLOR_PAIR(CP_DIM));
 
     wrefresh(pop);
@@ -478,9 +513,11 @@ int tui_modal_confirm(const char *question) {
         mvwprintw(pop, 0, (mw - (int)strlen(hdr)) / 2, "%s", hdr);
         wattroff(pop, COLOR_PAIR(CP_BORDER) | A_BOLD);
 
-        wattron(pop, COLOR_PAIR(CP_NORMAL));
-        mvwprintw(pop, 2, (mw - qw) / 2, "%s", question);
-        wattroff(pop, COLOR_PAIR(CP_NORMAL));
+        // wattron(pop, COLOR_PAIR(CP_NORMAL));
+        // mvwprintw(pop, 2, (mw - qw) / 2, "%s", question);
+        // wattroff(pop, COLOR_PAIR(CP_NORMAL));
+        /* Wrap the question so it never bleeds past the border */
+        tui_print_wrapped(pop, 2, 3, mw - 6, 3, CP_NORMAL, question);
 
         /* YES button */
         int yes_x = mw / 2 - 14;
@@ -596,4 +633,65 @@ int tui_modal_menu(const char *title, const char *options[], const char *hint) {
 
     delwin(pop);
     return sel;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Word-wrap printer                                                            */
+/* ─────────────────────────────────────────────────────────────────────────── */
+int tui_print_wrapped(WINDOW *win, int start_y, int margin_x,
+                      int inner_w, int max_lines,
+                      int color_pair, const char *text) {
+    if (!text || inner_w <= 0 || max_lines <= 0) return 0;
+
+    /* Working copy so we can mutate it */
+    char buf[1024];
+    strncpy(buf, text, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    int line = 0;
+    char *p = buf;
+
+    while (*p && line < max_lines) {
+        /* How many bytes fit on one visual line? */
+        int col = 0, bytes = 0;
+        const unsigned char *s = (const unsigned char *)p;
+        const unsigned char *last_space_pos = NULL;
+        int   last_space_bytes = 0;
+
+        while (*s) {
+            /* Decode one UTF-8 codepoint */
+            unsigned long cp = 0; int b = 1;
+            if      (*s < 0x80)                                    { cp = *s;            b = 1; }
+            else if ((*s & 0xE0) == 0xC0 && *(s+1))               { cp = (*s&0x1F)<<6  | (*(s+1)&0x3F);                           b = 2; }
+            else if ((*s & 0xF0) == 0xE0 && *(s+1) && *(s+2))     { cp = (*s&0x0F)<<12 | (*(s+1)&0x3F)<<6 | (*(s+2)&0x3F);       b = 3; }
+            else if ((*s & 0xF8) == 0xF0 && *(s+1) && *(s+2) && *(s+3)) {
+                                                                      cp = (*s&0x07)<<18 | (*(s+1)&0x3F)<<12 | (*(s+2)&0x3F)<<6 | (*(s+3)&0x3F); b = 4; }
+            int w = (cp >= 0x1F000) ? 2 : 1;
+
+            if (col + w > inner_w) break;   /* would overflow — stop */
+            if (*s == ' ') { last_space_pos = s; last_space_bytes = bytes; }
+            col  += w;
+            bytes += b;
+            s    += b;
+        }
+
+        /* If we stopped mid-word and there was a previous space, break there */
+        if (*s && last_space_pos) {
+            bytes = last_space_bytes;
+        }
+
+        /* Print this line */
+        char save = p[bytes];
+        p[bytes] = '\0';
+        wattron(win, COLOR_PAIR(color_pair));
+        mvwprintw(win, start_y + line, margin_x, "%s", p);
+        wattroff(win, COLOR_PAIR(color_pair));
+        p[bytes] = save;
+
+        /* Advance past the printed bytes (skip leading space on next line) */
+        p += bytes;
+        if (*p == ' ') p++;
+        line++;
+    }
+    return line;
 }
