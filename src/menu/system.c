@@ -550,7 +550,13 @@ void checkAccountDetails(struct User u) {
              mvwprintw(dwin, y, 3, "%-18s:", label); \
              wattroff(dwin, COLOR_PAIR(CP_LABEL)|A_BOLD); \
              wattron(dwin, COLOR_PAIR(CP_NORMAL)|A_BOLD); \
-             mvwprintw(dwin, y++, 22, fmt, val); \
+             char vbuf[64]; snprintf(vbuf, sizeof(vbuf), fmt, val); \
+             int avail = ww - 22 - 3; \
+             if ((int)strlen(vbuf) > avail) { \
+                if (avail > 3) { vbuf[avail-3]='.'; vbuf[avail-2]='.'; vbuf[avail-1]='.'; vbuf[avail]='\0'; } \
+                else vbuf[avail]='\0'; \
+             } \
+             mvwprintw(dwin, y++, 22, "%s", vbuf); \
              wattroff(dwin, COLOR_PAIR(CP_NORMAL)|A_BOLD); } while (0)
 
     F("Account Number", "%d",  accId);
@@ -586,14 +592,26 @@ void checkAccountDetails(struct User u) {
     wattroff(dwin, COLOR_PAIR(CP_BORDER));
 
     wattron(dwin, COLOR_PAIR(CP_DIM));
-    if (rate > 0.0) {
+    char msg_buf[256];
+    if (!strcmp(atype, "savings")) {
         double interest = balance * rate / 12.0;
-        mvwprintw(dwin, y++, 3,
-                  "Monthly interest: $%.2f  (%.0f%% per year)",
-                  interest, rate * 100.0);
-        mvwprintw(dwin, y++, 3, "Credited on day %d of each month.", dy);
+        snprintf(msg_buf, sizeof(msg_buf),
+                 "You will get $%.2f as interest on day %d of every month.",
+                 interest, dy);
+        y += tui_print_wrapped(dwin, y, 3, ww - 6, 4, CP_DIM, msg_buf);
+    } else if (!strcmp(atype, "fixed01") || !strcmp(atype, "fixed02") ||
+            !strcmp(atype, "fixed03")) {
+        int term = (!strcmp(atype, "fixed01")) ? 1
+                : (!strcmp(atype, "fixed02")) ? 2 : 3;
+        double interest = balance * rate * term;
+        snprintf(msg_buf, sizeof(msg_buf),
+                 "You will get $%.2f as interest on %02d/%02d/%04d.",
+                 interest, dy, mo, yr + term);
+        y += tui_print_wrapped(dwin, y, 3, ww - 6, 4, CP_DIM, msg_buf);
     } else if (!strcmp(atype, "current")) {
-        mvwprintw(dwin, y++, 3, "Current accounts do not earn interest.");
+        snprintf(msg_buf, sizeof(msg_buf),
+                 "You will not get interests because the account is of type current.");
+        y += tui_print_wrapped(dwin, y, 3, ww - 6, 4, CP_DIM, msg_buf);
     }
     wattroff(dwin, COLOR_PAIR(CP_DIM));
 

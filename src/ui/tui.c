@@ -113,7 +113,12 @@ void tui_header(const char *username) {
         snprintf(right, sizeof(right), " %s | %02d:%02d ",
                  username, tm_info->tm_hour, tm_info->tm_min);
         /* strlen is safe here: right is pure ASCII */
-        mvprintw(0, COLS - (int)strlen(right), "%s", right);
+        int rlen = (int)strlen(right);
+        int rx   = COLS - rlen;
+        if (rx < 26) rx = 26; // Keep clear of "BANK MANAGEMENT SYSTEM" (pos 0..23)
+        if (rx < COLS) {
+            mvprintw(0, rx, "%s", right);
+        }
     }
     attroff(COLOR_PAIR(CP_STATUS) | A_BOLD);
     refresh();
@@ -400,8 +405,13 @@ void tui_draw_logo(WINDOW *win, int starty, int startx) {
     wattroff(win, COLOR_PAIR(CP_TITLE) | A_BOLD);
 
     wattron(win, COLOR_PAIR(CP_BORDER) | A_BOLD);
-    mvwprintw(win, starty + n + 1, startx - 2,
-              "  B A N K   M A N A G E M E N T   S Y S T E M  ");
+    {
+        const char *sub = "B A N K   M A N A G E M E N T   S Y S T E M";
+        int sub_w = (int)strlen(sub);
+        int sub_x = (getmaxx(win) - sub_w) / 2;
+        if (sub_x < 0) sub_x = 0;
+        mvwprintw(win, starty + n, sub_x, "%s", sub);
+    }
     wattroff(win, COLOR_PAIR(CP_BORDER) | A_BOLD);
 }
 

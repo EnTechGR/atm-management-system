@@ -211,7 +211,7 @@ void initMenu(struct User *u) {
 
         /* Logo centred in the upper section */
         int logo_w = 20;   /* visual width of the ASCII art lines */
-        int logo_h = 7;    /* lines + subtitle */
+        int logo_h = 16;    /* 5 ASCII lines + subtitle on the next line */
         int logo_y = (LINES - logo_h - 10) / 2;
         if (logo_y < 2) logo_y = 2;
         int logo_x = (COLS - logo_w) / 2;
