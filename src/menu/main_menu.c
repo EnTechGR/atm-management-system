@@ -142,7 +142,7 @@ void mainMenu(struct User u) {
         /* Input loop */
         keypad(menu_outer, TRUE);
         int ch, chosen = -1;
-        while ((ch = wgetch(menu_outer)) != ERR) {
+        while ((ch = tui_getch(menu_outer)) != ERR) {
             if      (ch == KEY_DOWN || ch == 'j') menu_driver(menu, REQ_DOWN_ITEM);
             else if (ch == KEY_UP   || ch == 'k') menu_driver(menu, REQ_UP_ITEM);
             else if (ch == '\n' || ch == KEY_ENTER) {

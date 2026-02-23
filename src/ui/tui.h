@@ -86,6 +86,7 @@ void tui_draw_logo(WINDOW *win, int starty, int startx);
 /* ── Modal dialogs ───────────────────────────────────────────────────────── */
 void tui_modal_success(const char *msg);
 void tui_modal_error  (const char *msg);
+void tui_modal_notification(const char *msg);
 
 /* Returns 1 for YES, 0 for NO. */
 int  tui_modal_confirm(const char *question);
@@ -95,5 +96,11 @@ int  tui_modal_confirm(const char *question);
 int  tui_modal_menu(const char *title,
                     const char *options[],
                     const char *hint);
+
+/* ── Centralized Input & Async Notifications ─────────────────────────── */
+/* Reads a key from win, but intercepts KEY_F(12) to show pending notifications. */
+int  tui_getch(WINDOW *win);
+/* Used by background threads to signal a notification message. */
+void tui_set_notification(const char *msg);
 
 #endif /* TUI_H */

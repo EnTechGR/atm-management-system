@@ -3,6 +3,10 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <pthread.h>
+
+static char            g_pending_notif[1024] = {0};
+static pthread_mutex_t g_notif_mx           = PTHREAD_MUTEX_INITIALIZER;
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /* Internal: UTF-8 display-width counter                                       */
@@ -195,8 +199,9 @@ int tui_input(WINDOW *win, int y, int x, int len,
     wrefresh(win);
 
     keypad(win, TRUE);
+    flushinp();
     int ch;
-    while ((ch = wgetch(win)) != '\n' && ch != KEY_ENTER) {
+    while ((ch = tui_getch(win)) != '\n' && ch != KEY_ENTER) {
         if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
             if (pos > 0) {
                 pos--;
@@ -318,6 +323,7 @@ int tui_pick_item(const char *title, const char **items, int n,
     int sel   = 0;
     int top   = 0;   /* first visible item index */
     int ch;
+    flushinp();
 
     while (1) {
         /* Border + title */
@@ -370,7 +376,7 @@ int tui_pick_item(const char *title, const char **items, int n,
 
         wrefresh(pop);
 
-        ch = wgetch(pop);
+        ch = tui_getch(pop);
         if      (ch == KEY_UP   || ch == 'k') sel = (sel > 0)     ? sel - 1 : 0;
         else if (ch == KEY_DOWN || ch == 'j') sel = (sel < n - 1) ? sel + 1 : n - 1;
         else if (ch == '\n' || ch == KEY_ENTER) break;
@@ -488,8 +494,28 @@ static void _modal_info(const char *msg, int cpair, const char *icon) {
     wattroff(pop, COLOR_PAIR(CP_DIM));
 
     wrefresh(pop);
+
+    /* Flush any keys that were already buffered BEFORE the modal appeared
+       (e.g. an Enter that was mid-press when the notification arrived). */
+    flushinp();
+
+    /* Plain wgetch — intentionally NOT tui_getch so we never nest modals
+       and the dismissal key is consumed here and nowhere else.            */
     wgetch(pop);
+
+    /* Flush the dismissal key itself plus anything else that snuck in,
+       so it cannot propagate to whatever window is underneath.            */
+    napms(50);
+    flushinp();
+
+    /* Erase the modal from the screen */
+    werase(pop);
+    wrefresh(pop);
     delwin(pop);
+
+    /* Force ncurses to redraw everything from scratch to restore background windows */
+    clearok(curscr, TRUE);
+    refresh();
 }
 
 void tui_modal_success(const char *msg) {
@@ -498,6 +524,10 @@ void tui_modal_success(const char *msg) {
 
 void tui_modal_error(const char *msg) {
     _modal_info(msg, CP_ERROR, "[  ERROR  ]");
+}
+
+void tui_modal_notification(const char *msg) {
+    _modal_info(msg, CP_DIM, "[  NOTIF  ]");
 }
 
 int tui_modal_confirm(const char *question) {
@@ -515,6 +545,7 @@ int tui_modal_confirm(const char *question) {
 
     int sel = 1;   /* 1 = YES  0 = NO */
     int ch;
+    flushinp();
 
     while (1) {
         wattron(pop, COLOR_PAIR(CP_BORDER) | A_BOLD);
@@ -523,9 +554,6 @@ int tui_modal_confirm(const char *question) {
         mvwprintw(pop, 0, (mw - (int)strlen(hdr)) / 2, "%s", hdr);
         wattroff(pop, COLOR_PAIR(CP_BORDER) | A_BOLD);
 
-        // wattron(pop, COLOR_PAIR(CP_NORMAL));
-        // mvwprintw(pop, 2, (mw - qw) / 2, "%s", question);
-        // wattroff(pop, COLOR_PAIR(CP_NORMAL));
         /* Wrap the question so it never bleeds past the border */
         tui_print_wrapped(pop, 2, 3, mw - 6, 3, CP_NORMAL, question);
 
@@ -555,7 +583,7 @@ int tui_modal_confirm(const char *question) {
 
         wrefresh(pop);
 
-        ch = wgetch(pop);
+        ch = tui_getch(pop);
         if      (ch == 'y' || ch == 'Y') { sel = 1; }
         else if (ch == 'n' || ch == 'N') { sel = 0; }
         else if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == '\t') { sel = !sel; }
@@ -597,6 +625,7 @@ int tui_modal_menu(const char *title, const char *options[], const char *hint) {
 
     int sel = 0;
     int ch;
+    flushinp();
 
     while (1) {
         wattron(pop, COLOR_PAIR(CP_BORDER) | A_BOLD);
@@ -630,7 +659,7 @@ int tui_modal_menu(const char *title, const char *options[], const char *hint) {
 
         wrefresh(pop);
 
-        ch = wgetch(pop);
+        ch = tui_getch(pop);
         if      (ch == KEY_UP   || ch == 'k') sel = (sel > 0)     ? sel - 1 : n - 1;
         else if (ch == KEY_DOWN || ch == 'j') sel = (sel < n - 1) ? sel + 1 : 0;
         else if (ch == '\n' || ch == KEY_ENTER) break;
@@ -704,4 +733,64 @@ int tui_print_wrapped(WINDOW *win, int start_y, int margin_x,
         line++;
     }
     return line;
+}
+
+/* ── Centralized Input & Async Notifications ─────────────────────────── */
+
+void tui_set_notification(const char *msg) {
+    pthread_mutex_lock(&g_notif_mx);
+    strncpy(g_pending_notif, msg, sizeof(g_pending_notif) - 1);
+    g_pending_notif[sizeof(g_pending_notif) - 1] = '\0';
+    pthread_mutex_unlock(&g_notif_mx);
+
+    /* NOTE: ungetch() is intentionally NOT called here.
+       ncurses is single-threaded; calling ungetch() from the background
+       notification thread while the main thread is inside wgetch() is
+       undefined behaviour and corrupts the input buffer.
+       Instead, tui_getch() uses wtimeout() to poll periodically so it
+       picks up g_pending_notif without any cross-thread ncurses calls. */
+}
+
+int tui_getch(WINDOW *win) {
+    /* Use a timeout so wgetch() wakes up periodically even with no keypress.
+       This lets us check g_pending_notif without any cross-thread ncurses
+       calls — the only safe way to detect background-thread notifications. */
+    wtimeout(win, 300);
+
+    for (;;) {
+        char msg[1024];
+        msg[0] = '\0';
+
+        pthread_mutex_lock(&g_notif_mx);
+        if (g_pending_notif[0] != '\0') {
+            strcpy(msg, g_pending_notif);
+            g_pending_notif[0] = '\0';
+        }
+        pthread_mutex_unlock(&g_notif_mx);
+
+        if (msg[0]) {
+            /* Show the notification modal.  _modal_info uses a plain
+               wgetch()+flushinp() for dismissal, so the key that closes
+               the modal is fully consumed before we return here.         */
+            tui_modal_notification(msg);
+
+            /* Belt-and-suspenders: flush anything that might have leaked
+               through before we resume waiting on the caller's window.  */
+            flushinp();
+
+            /* Re-arm the timeout in case the modal reset the window state. */
+            wtimeout(win, 300);
+            continue;
+        }
+
+        int ch = wgetch(win);
+
+        if (ch == ERR) continue;      /* timeout — loop back to poll for notifications */
+        if (ch == KEY_F(12)) continue; /* legacy guard: stale signal from old approach */
+
+        /* Restore blocking mode on the window before handing the key back,
+           so callers that do their own wgetch() are unaffected.          */
+        wtimeout(win, -1);
+        return ch;
+    }
 }

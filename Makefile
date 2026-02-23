@@ -19,7 +19,7 @@ SRC = src/main.c \
       src/ui_helper.c \
       src/utils/ipc_utils.c \
       src/ui/tui.c \
-	  src/validation/validators.o
+      src/validation/validators.c
 
 OBJ    = $(SRC:.c=.o)
 TARGET = atm
@@ -54,11 +54,8 @@ src/database/database.o: src/database/database.c src/database/database.h
 src/utils/ipc_utils.o: src/utils/ipc_utils.c src/utils/ipc_utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-src/validation/validators.o: src/validation/validators.c
-	cc -Wall -Wextra -g -c src/validation/validators.c -o src/validation/validators.o
-
-src/validation/validators.o: src/validation/validators.c
-	cc -Wall -Wextra -g -c src/validation/validators.c -o src/validation/validators.o
+src/validation/validators.o: src/validation/validators.c src/validation/validators.h
+	$(CC) $(CFLAGS) -c $< -o $@
 # ── Utility ───────────────────────────────────────────────────────────────────
 .PHONY: clean install-deps
 

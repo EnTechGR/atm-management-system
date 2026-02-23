@@ -550,7 +550,7 @@ void checkAccountDetails(struct User u) {
              mvwprintw(dwin, y, 3, "%-18s:", label); \
              wattroff(dwin, COLOR_PAIR(CP_LABEL)|A_BOLD); \
              wattron(dwin, COLOR_PAIR(CP_NORMAL)|A_BOLD); \
-             char vbuf[64]; snprintf(vbuf, sizeof(vbuf), fmt, val); \
+             char vbuf[128]; snprintf(vbuf, sizeof(vbuf), fmt, val); \
              int avail = ww - 22 - 3; \
              if ((int)strlen(vbuf) > avail) { \
                 if (avail > 3) { vbuf[avail-3]='.'; vbuf[avail-2]='.'; vbuf[avail-1]='.'; vbuf[avail]='\0'; } \
